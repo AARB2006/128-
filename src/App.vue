@@ -1,4 +1,5 @@
 <script setup>
+import PlaylistNameInput from './components/PlaylistNameInput.vue'
 import LinkTextbox from './components/LinkTextbox.vue'
 import ImportError from './components/ImportError.vue'
 import ImportStatus from './components/ImportStatus.vue'
@@ -8,6 +9,7 @@ import ExportButton from './components/ExportButton.vue'
 <template>
   <main class="page-shell">
     <section class="import-panel" aria-label="YT-MP3 import panel">
+      <PlaylistNameInput />
       <LinkTextbox />
       <ImportError />
       <ImportStatus />

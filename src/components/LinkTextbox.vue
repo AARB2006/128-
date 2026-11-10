@@ -1,14 +1,26 @@
+<script setup>
+import { useLinks } from '../composables/useLinks.js'
+
+// The counter shows how many links the list would hold after importing the
+// draft (stored + lines typed), out of the cap.
+const { draft, max, total, overLimit, busy } = useLinks()
+</script>
+
 <template>
   <section class="link-input" aria-label="YouTube link input">
     <label class="visually-hidden" for="youtube-links">YouTube video links</label>
 
     <textarea
       id="youtube-links"
+      v-model="draft"
+      :disabled="busy"
       placeholder="enter links here..."
       spellcheck="false"
     ></textarea>
 
-    <span class="link-count">0/10</span>
+    <span class="link-count" :class="{ over: overLimit }" aria-live="polite">
+      {{ total }}/{{ max }}
+    </span>
   </section>
 </template>
 
@@ -50,6 +62,15 @@ textarea::placeholder {
   background: #fff;
   font-size: 21px;
   font-variant-numeric: tabular-nums;
+}
+
+.link-count.over {
+  color: #8f1d16;
+  font-weight: bold;
+}
+
+textarea:disabled {
+  color: #777;
 }
 
 .visually-hidden {

@@ -1,9 +1,16 @@
 <script setup>
+import { onMounted } from 'vue'
 import PlaylistNameInput from './components/PlaylistNameInput.vue'
 import LinkTextbox from './components/LinkTextbox.vue'
 import ImportError from './components/ImportError.vue'
 import ImportStatus from './components/ImportStatus.vue'
+import LinkList from './components/LinkList.vue'
+import ImportButton from './components/ImportButton.vue'
 import ExportButton from './components/ExportButton.vue'
+import { useLinks } from './composables/useLinks.js'
+
+const { refresh } = useLinks()
+onMounted(refresh)
 </script>
 
 <template>
@@ -13,8 +20,10 @@ import ExportButton from './components/ExportButton.vue'
       <LinkTextbox />
       <ImportError />
       <ImportStatus />
+      <LinkList />
 
       <div class="actions-row">
+        <ImportButton />
         <ExportButton />
       </div>
     </section>

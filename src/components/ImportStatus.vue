@@ -1,6 +1,12 @@
+<script setup>
+import { useLinks } from '../composables/useLinks.js'
+
+const { status } = useLinks()
+</script>
+
 <template>
   <div class="import-status" role="status" aria-live="polite">
-    STATUS OF IMPORT...
+    {{ status || 'STATUS OF IMPORT...' }}
   </div>
 </template>
 

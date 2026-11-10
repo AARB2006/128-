@@ -1,6 +1,19 @@
+<script setup>
+import { useLinks } from '../composables/useLinks.js'
+
+const { error } = useLinks()
+</script>
+
 <template>
-  <div class="import-error" role="alert" hidden>
-    Error message will appear here.
+  <div v-if="error" class="import-error" role="alert">
+    <p class="message">{{ error.message }}</p>
+
+    <ul v-if="error.problems.length" class="problems">
+      <li v-for="problem in error.problems" :key="problem.line">
+        Line {{ problem.line }}: {{ problem.reason }}
+        <code>{{ problem.url }}</code>
+      </li>
+    </ul>
   </div>
 </template>
 
@@ -15,7 +28,17 @@
   line-height: 1.45;
 }
 
-.import-error[hidden] {
-  display: none !important;
+.message {
+  margin: 0;
+}
+
+.problems {
+  margin: 6px 0 0;
+  padding-left: 20px;
+}
+
+code {
+  overflow-wrap: anywhere;
+  font-size: 13px;
 }
 </style>

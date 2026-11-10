@@ -1,9 +1,17 @@
+<script setup>
+import { useLinks } from '../composables/useLinks.js'
+
+const { playlistName, busy } = useLinks()
+</script>
+
 <template>
   <section class="playlist-name-input" aria-label="Playlist name input">
     <label class="visually-hidden" for="playlist-name">Playlist name</label>
 
     <input
       id="playlist-name"
+      v-model="playlistName"
+      :disabled="busy"
       type="text"
       placeholder="enter playlist name..."
       maxlength="150"
@@ -31,6 +39,10 @@ input {
   background: transparent;
   font: inherit;
   font-size: 21px;
+}
+
+input:disabled {
+  color: #777;
 }
 
 input::placeholder {

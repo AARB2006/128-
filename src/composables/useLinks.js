@@ -8,15 +8,15 @@ import * as api from '../api/index.js'
 const playlistName = ref('') // names the exported zip; optional
 const draft = ref('') // raw textarea content
 const links = ref([]) // stored links, in playlist order
-const max = ref(10) // replaced by the API's value on first load
+const max = ref(10) // max links per import (history is unlimited); replaced by the API's value on first load
 const status = ref('') // '' = idle
 const error = ref(null) // { message, problems } or null
 const busy = ref(false)
 
 const draftLines = computed(() => draft.value.split(/\r?\n/).filter((line) => line.trim()))
-// How many links the list would hold if the draft were imported as-is.
-const total = computed(() => links.value.length + draftLines.value.length)
-const overLimit = computed(() => total.value > max.value)
+// Number of links typed into the textbox (the per-import limit applies to this).
+const draftCount = computed(() => draftLines.value.length)
+const overLimit = computed(() => draftCount.value > max.value)
 const canImport = computed(() => !busy.value && draftLines.value.length > 0)
 const canExport = computed(() => !busy.value && links.value.length > 0)
 
@@ -88,7 +88,7 @@ export function useLinks() {
     status,
     error,
     busy,
-    total,
+    draftCount,
     overLimit,
     canImport,
     canExport,

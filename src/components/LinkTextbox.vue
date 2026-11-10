@@ -3,7 +3,8 @@ import { useLinks } from '../composables/useLinks.js'
 
 // The counter shows how many links the list would hold after importing the
 // draft (stored + lines typed), out of the cap.
-const { draft, max, total, overLimit, busy } = useLinks()
+// The counter shows how many links are typed in, out of the per-import limit.
+const { draft, max, draftCount, overLimit, busy } = useLinks()
 </script>
 
 <template>
@@ -19,7 +20,7 @@ const { draft, max, total, overLimit, busy } = useLinks()
     ></textarea>
 
     <span class="link-count" :class="{ over: overLimit }" aria-live="polite">
-      {{ total }}/{{ max }}
+      {{ draftCount }}/{{ max }}
     </span>
   </section>
 </template>

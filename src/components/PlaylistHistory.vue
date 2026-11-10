@@ -1,17 +1,16 @@
 <script setup>
 import { useLinks } from '../composables/useLinks.js'
 
-const { links, max } = useLinks()
+// Placeholder for now: shows the flat list of imported links. Later this will
+// group songs under their playlist names. There is no limit on history size.
+const { links } = useLinks()
 </script>
 
 <template>
-  <section class="link-list" aria-label="Imported links">
-    <header class="list-header">
-      <span>playlist</span>
-      <span class="list-count">{{ links.length }}/{{ max }}</span>
-    </header>
+  <section class="playlist-history" aria-label="Playlist history">
+    <header class="history-header">playlist history</header>
 
-    <p v-if="!links.length" class="empty">No links imported yet.</p>
+    <p v-if="!links.length" class="empty">No history yet.</p>
 
     <ol v-else class="items">
       <li v-for="link in links" :key="link.id" class="item">
@@ -26,23 +25,18 @@ const { links, max } = useLinks()
 </template>
 
 <style scoped>
-.link-list {
-  margin-top: 12px;
+.playlist-history {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
   border: 3px solid #111;
   background: #fff;
 }
 
-.list-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.history-header {
   padding: 8px 14px;
   border-bottom: 3px solid #111;
   font-size: 20px;
-}
-
-.list-count {
-  font-variant-numeric: tabular-nums;
 }
 
 .empty {
@@ -53,8 +47,10 @@ const { links, max } = useLinks()
   font-size: 18px;
 }
 
+/* Fills the box and scrolls inside it, so a long history never stretches the page. */
 .items {
-  max-height: 320px;
+  flex: 1;
+  min-height: 0;
   margin: 0;
   padding: 0;
   overflow-y: auto;
@@ -97,7 +93,7 @@ const { links, max } = useLinks()
 }
 
 @media (max-width: 640px) {
-  .list-header {
+  .history-header {
     font-size: 16px;
   }
 

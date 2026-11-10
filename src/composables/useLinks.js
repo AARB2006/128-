@@ -1,24 +1,60 @@
-// Shared state and actions for the import/export screen.
-// State lives at module level, so every component that calls useLinks()
-// sees the same values (no prop-drilling for a one-screen app).
 
 import { computed, ref } from 'vue'
 import * as api from '../api/index.js'
 
-const playlistName = ref('') // names the exported zip; optional
-const draft = ref('') // raw textarea content
-const links = ref([]) // stored links, in playlist order
-const max = ref(10) // max links per import (history is unlimited); replaced by the API's value on first load
-const status = ref('') // '' = idle
-const error = ref(null) // { message, problems } or null
-const busy = ref(false)
+const playlistName = ref('')
+const draft = ref('')
 
-const draftLines = computed(() => draft.value.split(/\r?\n/).filter((line) => line.trim()))
-// Number of links typed into the textbox (the per-import limit applies to this).
+const playlists = ref([])
+const selectedPlaylistId = ref(null)
+
+const max = ref(10)
+
+const status = ref('')
+const error = ref(null)
+const busy = ref(false)
+const exporting = ref(false)
+
+// Flatten playlists for compatibility with existing components.
+const links = computed(() =>
+  playlists.value.flatMap((playlist) =>
+    playlist.tracks.map((track) => ({
+      id: `${playlist.playlist_id}-${track.song_id}`,
+      url: track.source_url,
+      title: track.title,
+      position: track.position,
+      playlist_name: playlist.name,
+    })),
+  ),
+)
+
+const selectedPlaylist = computed(() =>
+  playlists.value.find(
+    (playlist) => playlist.playlist_id === selectedPlaylistId.value,
+  ) || null,
+)
+
+const draftLines = computed(() =>
+  draft.value.split(/\r?\n/).filter((line) => line.trim()),
+)
+
 const draftCount = computed(() => draftLines.value.length)
 const overLimit = computed(() => draftCount.value > max.value)
-const canImport = computed(() => !busy.value && draftLines.value.length > 0)
-const canExport = computed(() => !busy.value && links.value.length > 0)
+
+const canImport = computed(
+  () =>
+    !busy.value &&
+    playlistName.value.trim().length > 0 &&
+    draftCount.value > 0 &&
+    !overLimit.value,
+)
+
+const canExport = computed(
+  () =>
+    !busy.value &&
+    selectedPlaylist.value !== null &&
+    selectedPlaylist.value.track_count > 0,
+)
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`
 
@@ -31,28 +67,48 @@ function showError(err, fallback) {
 
 async function refresh() {
   try {
-    const result = await api.listLinks()
-    links.value = result.links
-    max.value = result.max
+    const result = await api.listPlaylists()
+
+    playlists.value = result.playlists
+    max.value = result.max_links_per_import
+
+    // Clear the selection if the selected playlist no longer exists.
+    if (
+      !playlists.value.some(
+        (playlist) => playlist.playlist_id === selectedPlaylistId.value,
+      )
+    ) {
+      selectedPlaylistId.value = null
+    }
   } catch (err) {
-    showError(err, 'Could not load the link list.')
+    showError(err, 'Could not load playlist history.')
   }
 }
 
 async function importDraft() {
   if (!canImport.value) return
+
   busy.value = true
   error.value = null
   status.value = 'Importing...'
+
   try {
-    // Send every line, blanks included, so reported line numbers match the textarea.
-    const result = await api.importLinks(draft.value.split(/\r?\n/))
+    const result = await api.importPlaylist(
+      playlistName.value.trim(),
+      draft.value.split(/\r?\n/),
+    )
+
     await refresh()
+
+    // Select the newly created playlist.
+    selectedPlaylistId.value = result.playlist_id
+
     draft.value = ''
 
     const skipped = result.skipped.length
+
     status.value =
-      `Imported ${plural(result.added.length, 'link')}` +
+      `Created "${result.name}" with ${plural(result.track_count, 'track')}` +
       (skipped ? ` (${plural(skipped, 'duplicate')} skipped)` : '') +
       '.'
   } catch (err) {
@@ -65,16 +121,23 @@ async function importDraft() {
 
 async function exportZip() {
   if (!canExport.value) return
+
   busy.value = true
+  exporting.value = true
   error.value = null
-  status.value = 'Exporting...'
+  status.value = 'Preparing your MP3 files and ZIP archive...'
+
   try {
-    const result = await api.exportLinks(playlistName.value.trim())
-    status.value = `Exported ${result.filename}` + (result.note ? ` (${result.note})` : '') + '.'
+    const result = await api.exportPlaylist(
+      selectedPlaylistId.value,
+    )
+
+    status.value = `Download started: ${result.filename}`
   } catch (err) {
     showError(err, 'Export failed.')
     status.value = 'Export failed.'
   } finally {
+    exporting.value = false
     busy.value = false
   }
 }
@@ -83,11 +146,15 @@ export function useLinks() {
   return {
     playlistName,
     draft,
+    playlists,
+    selectedPlaylistId,
+    selectedPlaylist,
     links,
     max,
     status,
     error,
     busy,
+    exporting,
     draftCount,
     overLimit,
     canImport,

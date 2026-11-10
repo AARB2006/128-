@@ -1,23 +1,81 @@
-# Logs
-logs
-*.log
+
+# ==========================================
+# Node.js / Vue / Vite
+# ==========================================
+
+node_modules/
+dist/
+dist-ssr/
+coverage/
+*.local
+
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-.DS_Store
-dist
-dist-ssr
-coverage
-*.local
+# Vite generated files
+*.timestamp-*-*.mjs
 
-# Editor directories and files
+# ==========================================
+# Python
+# ==========================================
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+backend/.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Test and coverage cache
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ==========================================
+# Environment variables and secrets
+# ==========================================
+
+.env
+.env.*
+!.env.example
+!.env.sample
+
+# ==========================================
+# Generated application files
+# ==========================================
+
+# Exported ZIP and audio files
+*.zip
+*.mp3
+
+# Temporary processing directories
+backend/exports/
+backend/temp/
+backend/tmp/
+
+# ==========================================
+# Logs
+# ==========================================
+
+logs/
+*.log
+
+# ==========================================
+# IDE and editor files
+# ==========================================
+
 .vscode/*
 !.vscode/extensions.json
-.idea
+
+.idea/
 *.suo
 *.ntvs*
 *.njsproj
@@ -25,15 +83,20 @@ coverage
 *.sw?
 
 *.tsbuildinfo
-
 .eslintcache
 
-# Cypress
-/cypress/videos/
-/cypress/screenshots/
+# ==========================================
+# Operating system files
+# ==========================================
 
-# Vitest
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ==========================================
+# Browser testing artifacts
+# ==========================================
+
+cypress/videos/
+cypress/screenshots/
 __screenshots__/
-
-# Vite
-*.timestamp-*-*.mjs

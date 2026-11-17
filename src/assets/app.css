@@ -1,0 +1,127 @@
+/* Styles for the signed-in application. Everything is scoped under
+   .app-shell or prefixed with app-, so it cannot affect the landing page or /poc. */
+
+.app-shell {
+  --c-bg: #f6f7f9;
+  --c-surface: #ffffff;
+  --c-border: #e3e6ea;
+  --c-hover: #f0f2f5;
+  --c-text: #111827;
+  --c-muted: #667085;
+  --c-accent: #111827;
+  --c-accent-text: #ffffff;
+  --c-danger: #b42318;
+  --c-danger-bg: #fef3f2;
+  --c-selected: #eef2ff;
+  --radius: 12px;
+
+  display: flex;
+  min-height: 100vh;
+  background: var(--c-bg);
+  color: var(--c-text);
+}
+
+.app-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.app-page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+}
+
+.app-page-title {
+  margin: 0 0 24px;
+  font-size: 28px;
+  line-height: 1.2;
+}
+
+.app-card {
+  padding: 24px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  background: var(--c-surface);
+}
+
+.app-muted {
+  color: var(--c-muted);
+}
+
+.app-alert {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 16px;
+  padding: 12px 16px;
+  border: 1px solid #fecdca;
+  border-radius: 10px;
+  background: var(--c-danger-bg);
+  color: var(--c-danger);
+}
+
+.app-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--c-border);
+  border-radius: 10px;
+  background: var(--c-surface);
+  color: var(--c-text);
+  font: inherit;
+  font-size: 15px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.app-btn:hover:not(:disabled) {
+  background: var(--c-hover);
+}
+
+.app-btn:focus-visible,
+.app-shell a:focus-visible,
+.app-shell button:focus-visible,
+.app-shell input:focus-visible {
+  outline: 3px solid #98a2b3;
+  outline-offset: 2px;
+}
+
+.app-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.app-btn-primary {
+  border-color: var(--c-accent);
+  background: var(--c-accent);
+  color: var(--c-accent-text);
+}
+
+.app-btn-primary:hover:not(:disabled) {
+  background: #1f2937;
+}
+
+.app-btn-danger {
+  border-color: #fecdca;
+  color: var(--c-danger);
+}
+
+.app-btn-danger:hover:not(:disabled) {
+  background: var(--c-danger-bg);
+}
+
+.app-btn-danger-solid {
+  border-color: var(--c-danger);
+  background: var(--c-danger);
+  color: #fff;
+}
+
+.app-btn-danger-solid:hover:not(:disabled) {
+  background: #912018;
+}

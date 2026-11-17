@@ -18,31 +18,35 @@ defineEmits(['delete'])
     />
 
     <div class="actions">
-      <span v-if="selectedCount" class="count" aria-live="polite">
-        {{ selectedCount }} selected
-      </span>
+      <div class="actions-left">
+        <RouterLink :to="{ name: 'import' }" class="app-btn app-btn-primary">
+          Import Music
+        </RouterLink>
+      </div>
 
-      <RouterLink :to="{ name: 'import' }" class="app-btn app-btn-primary">
-        Import Music
-      </RouterLink>
+      <div class="actions-right">
+        <span v-if="selectedCount" class="count" aria-live="polite">
+          {{ selectedCount }} selected
+        </span>
 
-      <button
-        class="app-btn"
-        type="button"
-        disabled
-        title="Playlists are coming in a later update"
-      >
-        Add to Playlist
-      </button>
+        <button
+          class="app-btn"
+          type="button"
+          disabled
+          title="Playlists are coming in a later update"
+        >
+          Add to Playlist
+        </button>
 
-      <button
-        class="app-btn app-btn-danger"
-        type="button"
-        :disabled="!selectedCount"
-        @click="$emit('delete')"
-      >
-        Delete Music
-      </button>
+        <button
+          class="app-btn app-btn-danger"
+          type="button"
+          :disabled="!selectedCount"
+          @click="$emit('delete')"
+        >
+          Delete Music
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -71,21 +75,20 @@ defineEmits(['delete'])
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.actions-left,
+.actions-right {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
 }
 
 .count {
-  margin-right: auto;
   font-size: 14px;
   color: var(--c-muted);
-}
-
-/* Push the buttons to the right when nothing is selected. */
-.actions .app-btn:first-of-type {
-  margin-left: auto;
-}
-
-.count + .app-btn {
-  margin-left: 0;
 }
 </style>

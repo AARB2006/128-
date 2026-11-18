@@ -7,11 +7,22 @@ import { supabase } from '@/lib/supabase.js'
 export async function getSongs() {
   const { data, error } = await supabase
     .from('songs')
-    .select('song_id, title, source_url, video_id, duration_seconds, date_added')
+    .select(
+      'song_id, title, source_url, video_id, duration_seconds, date_added, ' +
+        'playlist_songs(playlists(playlist_id, name))',
+    )
     .order('date_added', { ascending: false })
 
   if (error) throw error
-  return data
+
+  // Each song gets a `playlists` list of { playlist_id, name }, A to Z.
+  return data.map(({ playlist_songs, ...song }) => ({
+    ...song,
+    playlists: (playlist_songs ?? [])
+      .map((link) => link.playlists)
+      .filter(Boolean)
+      .sort((a, b) => a.name.localeCompare(b.name)),
+  }))
 }
 
 // Keeps each request's URL short when many songs are selected.

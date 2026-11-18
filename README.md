@@ -1,9 +1,9 @@
 # YT-MP3: Family Playlist Maker
 
-A web app for building a personal music library from YouTube links. Each family member signs in with Google, imports up to ten YouTube links at a time, and manages their own songs. Playlists and MP3 export are planned for the next milestones.
+A web app for building a personal music library from YouTube links. Each family member signs in with Google, imports up to ten YouTube links at a time, manages their own songs, and arranges them into playlists. MP3 export is planned for the next milestone.
 
-> **Status:** Milestone 2 (Music Library and Import). Playlists and Export are placeholder pages.
-> **Version:** 0.2.0
+> **Status:** Milestone 3 (Playlists). Export is still a placeholder page.
+> **Version:** 0.3.0
 
 ---
 
@@ -31,7 +31,7 @@ A web app for building a personal music library from YouTube links. Each family 
 
 YT-MP3 is split into three parts:
 
-- **Vue frontend:** the signed-in app (sidebar, Music Library, Import Music, Account) and the landing page with Google sign-in.
+- **Vue frontend:** the signed-in app (sidebar, Music Library, Import Music, Playlists, Account) and the landing page with Google sign-in.
 - **Supabase:** Google sign-in, the Postgres database, and row-level security (RLS) that keeps each user's data separate.
 - **FastAPI backend:** checks links, reads video metadata with yt-dlp, and writes songs to the database. It's the only part that can write songs, because it holds the secret key.
 
@@ -50,6 +50,8 @@ Each user has a private library. If two users import the same YouTube video, eac
   - Live search by title or link.
   - Select one, several, or all songs.
   - Delete with a confirmation dialog. Deleting a song also removes it from your own playlists.
+  - A **Playlists** column showing how many playlists each song is in. Click it to see their names.
+  - **Add to Playlist:** add the selected songs to one of your playlists. Songs already in that playlist are skipped, and a message says how many were added.
   - An empty state for new accounts.
 - **Import Music:**
   - Paste up to 10 YouTube links, one per line. Blank lines are ignored.
@@ -60,12 +62,26 @@ Each user has a private library. If two users import the same YouTube video, eac
   - Reloading the page, or opening it on another device, picks the running import back up.
   - Daily quota per user (default 100 links per rolling 24 hours), set by `DAILY_IMPORT_LIMIT`.
   - Only one import can run at a time per user.
+- **Playlists page:**
+  - Lists your playlists, newest first, with the date created and the number of songs.
+  - Live search by playlist name.
+  - Select one, several, or all playlists and delete them after a confirmation. The songs stay in your library.
+  - Each row has a menu with **Edit playlist** (and **Export playlist**, disabled until export is built).
+  - An empty state when you have no playlists.
+- **Add Playlist page:** give the playlist a name (required, up to 100 characters) and an optional description (up to 500 characters).
+- **Playlist page** (open a playlist from the list):
+  - Click the name or description to edit them.
+  - **Add Song** opens a picker with the library songs that aren't in the playlist yet. New songs go to the end.
+  - Songs are numbered in playlist order. Reorder them by dragging a row, or with **Move up** / **Move down** in the row menu. The new order saves automatically; if saving fails, the list goes back to the last saved order.
+  - Reordering is paused while a search is active, so the numbers always match the full playlist.
+  - Search within the playlist, select songs, and **Remove Songs** (they stay in your library).
+  - **Delete Playlist** with a confirmation.
+  - A "Playlist not found" page for deleted playlists or wrong links.
 - **Account:** shows your name and email from your profile.
 - **Mobile layout:** the sidebar becomes a slide-out menu on small screens.
 
 ### Coming in Later Milestones
 
-- **Playlists:** create, arrange and manage playlists. The page is a placeholder for now, and "Add to Playlist" is disabled.
 - **Export Music:** download a playlist as numbered MP3s in a ZIP file. The page is a placeholder for now.
 
 ---
@@ -98,6 +114,14 @@ Each user has a private library. If two users import the same YouTube video, eac
 
 Each link's result is written to the database as soon as it's known. Because of that, a reload or a second device can show the same progress without any extra state in the backend.
 
+### Playlist flow
+
+Playlists don't go through the backend. The browser reads and writes them directly in Supabase, and RLS makes sure you can only touch your own playlists.
+
+- Creating, renaming, deleting playlists and removing songs are plain table writes.
+- Adding songs and reordering use two database functions, `add_songs_to_playlist` and `reorder_playlist_songs`. Each runs as one transaction, so positions stay numbered 1 to n with no gaps or duplicates.
+- On the playlist page, every change to the song list goes through one queue, so a slow request can never overtake a newer one.
+
 ---
 
 ## 4. Technology Stack
@@ -107,9 +131,10 @@ Each link's result is written to the database as soon as it's known. Because of 
 | Technology | Purpose |
 |---|---|
 | Vue 3 (`<script setup>`) | UI framework |
-| Vue Router 5 | Routing and the sign-in route guard |
+| Vue Router 4 | Routing and the sign-in route guard |
 | Vite 8 | Development server and build |
-| supabase-js v2 | Google sign-in and reading data under RLS |
+| supabase-js v2 | Google sign-in, reading data and writing playlists under RLS |
+| vue-draggable-plus | Drag-and-drop reordering of playlist songs |
 | Plain CSS | Styling (no CSS framework) |
 
 ### Backend
@@ -179,20 +204,30 @@ Each link's result is written to the database as soon as it's known. Because of 
 │   │   ├── useMusicLibrary.js      Loads and deletes songs
 │   │   ├── useSongSearch.js        Debounced search
 │   │   ├── useSongSelection.js     Row selection
-│   │   └── useImport.js            Import state and progress polling
+│   │   ├── useImport.js            Import state and progress polling
+│   │   ├── usePlaylists.js         Loads and deletes playlists
+│   │   ├── usePlaylistDetail.js    One playlist: edit, add, remove, reorder
+│   │   ├── useAddToPlaylist.js     Library's "Add to Playlist" popup
+│   │   └── useSongPicker.js        Playlist page's "Add Song" popup
 │   ├── services/
 │   │   ├── musicLibraryService.js  Song queries (Supabase)
+│   │   ├── playlistService.js      Playlist queries and writes (Supabase)
+│   │   ├── playlistRules.js        Name/description limits and checks
 │   │   ├── importService.js        Calls POST /imports and reads batches
 │   │   └── apiError.js             Error type for backend calls
 │   ├── components/
 │   │   ├── layout/                 Sidebar, app shell, placeholder page
 │   │   ├── library/                Toolbar, song table, delete dialog
-│   │   └── import/                 Links box, progress bar, results
+│   │   ├── import/                 Links box, progress bar, results
+│   │   ├── playlists/              Playlist table, song list, dialogs
+│   │   └── ui/                     Shared dialog, page toolbar, row menu
 │   ├── views/
 │   │   ├── LandingView.vue         Sign-in page
 │   │   ├── MusicLibraryView.vue
 │   │   ├── ImportMusicView.vue
-│   │   ├── PlaylistsView.vue       Placeholder
+│   │   ├── PlaylistsView.vue       List of playlists
+│   │   ├── PlaylistNewView.vue     Add Playlist form
+│   │   ├── PlaylistDetailView.vue  One playlist and its songs
 │   │   ├── ExportMusicView.vue     Placeholder
 │   │   ├── AccountView.vue
 │   │   └── PocView.vue             Legacy, dev only, not working with the new backend
@@ -216,8 +251,8 @@ The schema is in `database/schema.sql`. It creates these tables. Every table has
 |---|---|---|---|
 | `profiles` | One row per user (name, email). Created automatically at first sign-in. | Own row | Own display name |
 | `songs` | Your songs: link, title, duration. One copy per user per video. | Own rows | Backend only (delete: own rows) |
-| `playlists` | Playlists. Private to the user who created them. | Own rows | Own rows |
-| `playlist_songs` | Which songs are in which playlist, and in what order. | Own playlists | Own playlists |
+| `playlists` | Playlists: name and optional description. Private to the user who created them. | Own rows | Own rows (update: name and description only) |
+| `playlist_songs` | Which songs are in which playlist, and in what order. | Own playlists | Own playlists (update: position only) |
 | `import_batches` | One row per import: status and link count. | Own rows | Backend only |
 | `import_items` | One row per link in an import: its result and any error. | Own rows | Backend only |
 
@@ -225,7 +260,24 @@ Constraints worth knowing:
 
 - Each user can have a given video only once in `songs`.
 - Each import can have 1 to 10 links.
-- Playlist positions are unique per playlist.
+- Playlist positions are unique per playlist. The check is deferred, so a reorder can swap positions inside one transaction.
+- A playlist description can be at most 500 characters.
+- A playlist's `updated_at` changes whenever its songs are added, removed or reordered.
+
+The app also calls two database functions (RPCs):
+
+| Function | Purpose |
+|---|---|
+| `add_songs_to_playlist(p_playlist_id, p_song_ids)` | Appends songs to the end of a playlist, skips ones already in it, and returns how many were added. |
+| `reorder_playlist_songs(p_playlist_id, p_song_ids)` | Takes every song in the playlist in its new order and renumbers them 1 to n in one transaction. |
+
+**Upgrading from Milestone 2:** if your database was created from the older schema, add the new column and permission before using playlists:
+
+```sql
+alter table public.playlists
+    add column description text check (description is null or length(description) <= 500);
+grant update (name, description) on public.playlists to authenticated;
+```
 
 Only the backend holds the secret key, and only it can write songs and import rows. The browser never gets write access to those tables.
 
@@ -369,9 +421,16 @@ Press `Ctrl + C` in either terminal to stop it.
    - The bar shows progress. When it finishes, the summary shows what was added and what failed.
    - Failed links stay in the box. Fix them and import again.
    - Duplicates (songs you already have, or repeated links) are skipped.
-4. **Playlists** and **Export Music:** placeholder pages for now.
-5. **Account:** shows your name and email.
-6. **Log Out:** at the bottom of the sidebar.
+4. **Add songs to a playlist from the library:** tick songs in **Music Library** and click **Add to Playlist**, then choose the playlist.
+5. **Playlists:**
+   - Click **Add Playlist**, enter a name (and a description if you like), and save.
+   - Click a playlist's name to open it. Use **Add Song** to pick songs from your library.
+   - Drag rows, or use **Move up** / **Move down** in the row menu, to change the order. It saves on its own.
+   - Click the name or description at the top to edit it.
+   - Tick songs and click **Remove Songs** to take them out of the playlist, or **Delete Playlist** to delete the whole playlist. Your library isn't affected.
+6. **Export Music:** placeholder page for now.
+7. **Account:** shows your name and email.
+8. **Log Out:** at the bottom of the sidebar.
 
 On a phone, use the menu button at the top to open the sidebar.
 
@@ -379,7 +438,7 @@ On a phone, use the menu button at the top to open the sidebar.
 
 ## 11. Backend API
 
-The backend exposes two endpoints.
+The backend exposes two endpoints. Playlists don't use the backend; the browser talks to Supabase directly (see [Playlist flow](#playlist-flow)).
 
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
@@ -463,13 +522,14 @@ From the repo root:
 npm run build
 ```
 
-This checks that the app compiles. It doesn't run the UI tests.
+This checks that the app compiles. There are no automated frontend tests yet, so playlist features are checked by hand.
 
 ---
 
 ## 13. Current Limitations
 
-- **Playlists and Export are not built yet.** Their pages are placeholders.
+- **Export is not built yet.** The Export Music page is a placeholder, and the Export Playlist buttons are disabled.
+- **No reordering during search:** drag and Move up/down are turned off while the playlist search box has text.
 - **Export isn't wired up.** `exporter.py` is kept for later, but no route calls it.
 - **Imports need the backend running on your machine.** There's no hosted backend yet.
 - **Only one backend process is supported.** The background import and the restart cleanup both assume a single process.
@@ -483,12 +543,13 @@ This checks that the app compiles. It doesn't run the UI tests.
 
 ## 14. Roadmap
 
-1. **Playlists:** create playlists, add songs, reorder, rename and delete. Requires the Playlists page and the matching database writes.
-2. **Export:** a backend endpoint that downloads the audio with yt-dlp, converts it with FFmpeg, and returns a ZIP of numbered MP3s.
+1. ~~**Playlists:** create playlists, add songs, reorder, rename and delete.~~ Done in Milestone 3.
+2. **Export:** a backend endpoint that downloads the audio with yt-dlp, converts it with FFmpeg, and returns a ZIP of numbered MP3s in playlist order. Enables the Export Playlist buttons.
 3. **Cleanup:** delete the legacy POC files and the `/poc` route.
 4. **Live progress:** replace polling with Supabase Realtime.
 5. **Faster token checks:** verify login tokens locally with the project's public keys, instead of calling Supabase on each request.
-6. **Deployment:** choose a backend host that can run yt-dlp and FFmpeg, and set the production URL in Supabase.
+6. **Frontend tests:** automated tests for the playlist and library pages.
+7. **Deployment:** choose a backend host that can run yt-dlp and FFmpeg, and set the production URL in Supabase.
 
 ---
 

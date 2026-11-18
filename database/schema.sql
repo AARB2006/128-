@@ -25,6 +25,7 @@ create table public.playlists (
     playlist_id uuid primary key default gen_random_uuid(),
     owner_id    uuid not null references public.profiles (id) on delete cascade,
     name        text not null check (length(btrim(name)) > 0),
+        description text check (description is null or length(description) <= 500),
     created_at  timestamptz not null default now(),
     updated_at  timestamptz not null default now()
 );
@@ -187,7 +188,7 @@ revoke insert, update, delete on public.import_batches from authenticated;
 revoke insert, update, delete on public.import_items   from authenticated;
 
 revoke update on public.playlists from authenticated;
-grant  update (name) on public.playlists to authenticated;
+grant  update (name, description) on public.playlists to authenticated;
 
 revoke update on public.playlist_songs from authenticated;
 grant  update (position) on public.playlist_songs to authenticated;

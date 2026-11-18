@@ -2,8 +2,10 @@ import { computed, onScopeDispose, ref, watch } from 'vue'
 
 const DEBOUNCE_MS = 250
 
-// Debounced substring search over the songs already in memory.
-export function useSongSearch(songs) {
+// Debounced substring search over the items already in memory. `fields` are
+// the text properties to look in: song title and link by default, or name and
+// description for playlists.
+export function useSongSearch(songs, fields = ['title', 'source_url']) {
   const query = ref('')
   const debouncedQuery = ref('')
 
@@ -30,10 +32,8 @@ export function useSongSearch(songs) {
     const term = debouncedQuery.value
     if (!term) return songs.value
 
-    return songs.value.filter(
-      (song) =>
-        song.title.toLowerCase().includes(term) ||
-        song.source_url.toLowerCase().includes(term),
+    return songs.value.filter((item) =>
+      fields.some((field) => (item[field] ?? '').toLowerCase().includes(term)),
     )
   })
 

@@ -5,6 +5,8 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import MusicLibraryView from '@/views/MusicLibraryView.vue'
 import ImportMusicView from '@/views/ImportMusicView.vue'
 import PlaylistsView from '@/views/PlaylistsView.vue'
+import PlaylistNewView from '@/views/PlaylistNewView.vue'
+import PlaylistDetailView from '@/views/PlaylistDetailView.vue'
 import ExportMusicView from '@/views/ExportMusicView.vue'
 import AccountView from '@/views/AccountView.vue'
 
@@ -19,7 +21,16 @@ const routes = [
     children: [
       { path: 'library', name: 'library', component: MusicLibraryView },
       { path: 'import', name: 'import', component: ImportMusicView },
-      { path: 'playlists', name: 'playlists', component: PlaylistsView },
+      {
+        // No component of its own: the three pages below fill the same outlet,
+        // and the sidebar's Playlists link stays highlighted on all of them.
+        path: 'playlists',
+        children: [
+          { path: '', name: 'playlists', component: PlaylistsView },
+          { path: 'new', name: 'playlist-new', component: PlaylistNewView },
+          { path: ':playlistId', name: 'playlist', component: PlaylistDetailView },
+        ],
+      },
       { path: 'export', name: 'export', component: ExportMusicView },
       { path: 'account', name: 'account', component: AccountView },
     ],

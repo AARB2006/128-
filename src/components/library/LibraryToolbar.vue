@@ -4,7 +4,7 @@ const query = defineModel('query', { type: String, default: '' })
 defineProps({
   selectedCount: { type: Number, default: 0 },
 })
-defineEmits(['delete'])
+defineEmits(['delete', 'add-to-playlist'])
 </script>
 
 <template>
@@ -32,8 +32,8 @@ defineEmits(['delete'])
         <button
           class="app-btn"
           type="button"
-          disabled
-          title="Playlists are coming in a later update"
+          :disabled="!selectedCount"
+          @click="$emit('add-to-playlist')"
         >
           Add to Playlist
         </button>

@@ -2,10 +2,10 @@ import { computed, ref, watch } from 'vue'
 
 // Tracks which songs are ticked. Only songs currently shown can stay selected,
 // so a search or a delete can never leave a hidden song selected.
-export function useSongSelection(visibleSongs) {
+export function useSongSelection(visibleSongs, idKey = 'song_id') {
   const selectedIds = ref(new Set())
 
-  const visibleIds = computed(() => visibleSongs.value.map((song) => song.song_id))
+  const visibleIds = computed(() => visibleSongs.value.map((item) => item[idKey]))
   const count = computed(() => selectedIds.value.size)
   const allSelected = computed(
     () =>

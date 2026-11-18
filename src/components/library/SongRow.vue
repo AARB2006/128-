@@ -7,6 +7,9 @@ const props = defineProps({
 })
 defineEmits(['toggle', 'show-playlists'])
 
+// Shared by every cell. The row is a `group`, so cells turn blue when it's selected.
+const cell = 'border-t border-border px-4 py-3.5 align-middle group-[.selected]:bg-selected'
+
 // Only ever link to http(s) addresses, never to anything like javascript:.
 const safeUrl = computed(() =>
   /^https?:\/\//i.test(props.song.source_url) ? props.song.source_url : null,
@@ -27,9 +30,10 @@ const added = computed(() =>
 </script>
 
 <template>
-  <tr :class="{ selected }">
-    <td class="check">
+  <tr class="group" :class="{ selected }">
+    <td :class="[cell, 'check w-12']">
       <input
+        class="size-[18px] cursor-pointer"
         type="checkbox"
         :checked="selected"
         :aria-label="`Select ${song.title}`"
@@ -37,118 +41,35 @@ const added = computed(() =>
       />
     </td>
 
-    <td class="song">
-      <span class="title">{{ song.title }}</span>
+    <td :class="[cell, 'song wrap-anywhere']">
+      <span class="title block font-bold">{{ song.title }}</span>
       <a
         v-if="safeUrl"
-        class="source"
+        class="source mt-0.5 block text-[13px] text-muted"
         :href="safeUrl"
         target="_blank"
         rel="noopener noreferrer"
       >
         {{ safeUrl }}
       </a>
-      <span v-else class="source">{{ song.source_url }}</span>
+      <span v-else class="source mt-0.5 block text-[13px] text-muted">{{ song.source_url }}</span>
     </td>
 
-      <td class="playlists">
+    <td :class="[cell, 'playlists w-[200px] text-[14px] wrap-anywhere phone:w-[110px]']">
       <button
         v-if="song.playlists?.length"
-        class="count"
+        class="count font-inherit -ml-2.5 cursor-pointer rounded-full border-0 bg-transparent px-2.5 py-1 text-[14px] text-text underline decoration-border underline-offset-3 hover:bg-hover hover:decoration-current"
         type="button"
         :aria-label="`${playlistCount}. Show playlist names`"
         @click="$emit('show-playlists', song)"
       >
         {{ playlistCount }}
       </button>
-      <span v-else class="none" aria-label="Not in any playlist">-</span>
+      <span v-else class="none text-muted" aria-label="Not in any playlist">-</span>
     </td>
 
-    <td class="added">{{ added }}</td>
+    <td :class="[cell, 'added w-[190px] text-[14px] whitespace-nowrap text-muted phone:hidden']">
+      {{ added }}
+    </td>
   </tr>
 </template>
-
-<style scoped>
-td {
-  padding: 14px 16px;
-  border-top: 1px solid var(--c-border);
-  vertical-align: middle;
-}
-
-tr.selected td {
-  background: var(--c-selected);
-}
-
-.check {
-  width: 48px;
-}
-
-.song {
-  overflow-wrap: anywhere;
-}
-
-.title {
-  display: block;
-  font-weight: bold;
-}
-
-.source {
-  display: block;
-  margin-top: 2px;
-  font-size: 13px;
-  color: var(--c-muted);
-}
-
-.playlists {
-  width: 200px;
-  font-size: 14px;
-  overflow-wrap: anywhere;
-}
-
-.count {
-  padding: 4px 10px;
-  margin-left: -10px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--c-text);
-  font: inherit;
-  font-size: 14px;
-  text-decoration: underline;
-  text-decoration-color: var(--c-border);
-  text-underline-offset: 3px;
-  cursor: pointer;
-}
-
-.count:hover {
-  background: var(--c-hover);
-  text-decoration-color: currentColor;
-}
-
-.none {
-  color: var(--c-muted);
-}
-
-.added {
-  width: 190px;
-  font-size: 14px;
-  color: var(--c-muted);
-  white-space: nowrap;
-}
-
-input[type='checkbox'] {
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
-}
-
-@media (max-width: 640px) {
-  .added {
-    display: none;
-  }
-
-  .playlists {
-    width: 110px;
-  }
-}
-</style>

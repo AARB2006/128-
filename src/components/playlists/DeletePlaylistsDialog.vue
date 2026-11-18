@@ -18,7 +18,7 @@ const emit = defineEmits(['confirm', 'cancel'])
     :busy="busy"
     @close="emit('cancel')"
   >
-    <p class="text">
+    <p class="text mt-0 mb-6 text-muted wrap-anywhere">
       <template v-if="count === 1 && name">“{{ name }}” will be deleted.</template>
       <template v-else>
         {{ count === 1 ? 'This playlist' : 'These playlists' }} will be deleted.
@@ -26,7 +26,7 @@ const emit = defineEmits(['confirm', 'cancel'])
       Your songs stay in your Music Library. This can't be undone.
     </p>
 
-    <div class="buttons">
+    <div class="buttons flex justify-end gap-2">
       <button class="app-btn" type="button" :disabled="busy" @click="emit('cancel')">
         Cancel
       </button>
@@ -41,17 +41,3 @@ const emit = defineEmits(['confirm', 'cancel'])
     </div>
   </AppDialog>
 </template>
-
-<style scoped>
-.text {
-  margin: 0 0 24px;
-  color: var(--c-muted);
-  overflow-wrap: anywhere;
-}
-
-.buttons {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-</style>

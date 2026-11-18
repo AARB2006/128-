@@ -34,44 +34,15 @@ function requestClose() {
 <template>
   <dialog
     ref="dialog"
-    class="dialog"
+    class="dialog max-h-[90vh] w-[min(92vw,460px)] rounded-card border border-border bg-surface p-0 text-text backdrop:bg-[rgba(17,24,39,0.45)] [&.wide]:w-[min(94vw,560px)]"
     :class="{ wide }"
     :aria-labelledby="titleId"
     @cancel.prevent="requestClose"
     @click.self="requestClose"
   >
-    <div v-if="open" class="body">
-      <h2 :id="titleId">{{ title }}</h2>
+    <div v-if="open" class="body p-6">
+      <h2 :id="titleId" class="mt-0 mb-3 text-[20px]">{{ title }}</h2>
       <slot />
     </div>
   </dialog>
 </template>
-
-<style scoped>
-.dialog {
-  width: min(92vw, 460px);
-  max-height: 90vh;
-  padding: 0;
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius);
-  background: var(--c-surface);
-  color: var(--c-text);
-}
-
-.dialog.wide {
-  width: min(94vw, 560px);
-}
-
-.dialog::backdrop {
-  background: rgba(17, 24, 39, 0.45);
-}
-
-.body {
-  padding: 24px;
-}
-
-h2 {
-  margin: 0 0 12px;
-  font-size: 20px;
-}
-</style>

@@ -29,22 +29,22 @@ function requestCancel() {
 <template>
   <dialog
     ref="dialog"
-    class="dialog"
+    class="dialog w-[min(92vw,440px)] rounded-card border border-border bg-surface p-0 text-text backdrop:bg-[rgba(17,24,39,0.45)]"
     aria-labelledby="delete-title"
     @cancel.prevent="requestCancel"
     @click.self="requestCancel"
   >
-    <div class="body">
-      <h2 id="delete-title">
+    <div class="body p-6">
+      <h2 id="delete-title" class="mt-0 mb-2 text-[20px]">
         Delete {{ count }} {{ count === 1 ? 'song' : 'songs' }}?
       </h2>
-      <p>
+      <p class="mt-0 mb-6 text-muted">
         {{ count === 1 ? 'This song' : 'These songs' }} will be removed from
         your library and from any playlists that contain
         {{ count === 1 ? 'it' : 'them' }}. This can't be undone.
       </p>
 
-      <div class="buttons">
+      <div class="buttons flex justify-end gap-2">
         <button class="app-btn" type="button" :disabled="busy" @click="requestCancel">
           Cancel
         </button>
@@ -60,38 +60,3 @@ function requestCancel() {
     </div>
   </dialog>
 </template>
-
-<style scoped>
-.dialog {
-  width: min(92vw, 440px);
-  padding: 0;
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius);
-  background: var(--c-surface);
-  color: var(--c-text);
-}
-
-.dialog::backdrop {
-  background: rgba(17, 24, 39, 0.45);
-}
-
-.body {
-  padding: 24px;
-}
-
-h2 {
-  margin: 0 0 8px;
-  font-size: 20px;
-}
-
-p {
-  margin: 0 0 24px;
-  color: var(--c-muted);
-}
-
-.buttons {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-</style>

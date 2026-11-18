@@ -20,16 +20,25 @@ async function onContinue() {
 </script>
 
 <template>
-  <main class="landing">
-    <section class="card" aria-labelledby="title">
-      <h1 id="title">YT-MP3: Family Playlist Maker</h1>
-      <p class="tagline">
+  <!-- The landing page sits outside .app-shell, so it uses its own literal
+       colours rather than the --c-* tokens. -->
+  <main class="landing flex min-h-screen items-center justify-center px-6 py-12">
+    <section
+      class="card flex w-[min(100%,560px)] flex-col items-center gap-6 border-3 border-[#111] px-8 py-12 text-center phone:px-5 phone:py-8"
+      aria-labelledby="title"
+    >
+      <h1 id="title" class="m-0 text-[32px] leading-[1.2] phone:text-[26px]">
+        YT-MP3: Family Playlist Maker
+      </h1>
+      <p class="tagline m-0 text-[18px] text-[#444]">
         Keep your family's music in one place and build playlists for offline
         listening.
       </p>
 
+      <!-- Same look as the POC's shared .action-button (style.css), but full
+           width on phones instead of half. -->
       <button
-        class="action-button"
+        class="font-inherit min-h-16 w-[230px] min-w-[170px] cursor-pointer rounded-none border-3 border-[#111] bg-[#fff] px-6 py-2.5 text-[20px] text-[#111] transition-[background,color] duration-[120ms] ease-[ease] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#777] enabled:hover:bg-[#111] enabled:hover:text-[#fff] disabled:cursor-not-allowed disabled:border-[#999] disabled:bg-[#f2f2f2] disabled:text-[#777] phone:min-h-[54px] phone:w-full phone:min-w-0 phone:px-3 phone:py-2 phone:text-[16px]"
         type="button"
         :disabled="busy"
         @click="onContinue"
@@ -37,60 +46,7 @@ async function onContinue() {
         {{ busy ? 'Redirecting…' : 'Continue with Google' }}
       </button>
 
-      <p v-if="error" class="error" role="alert">{{ error }}</p>
+      <p v-if="error" class="error m-0 text-[#b00020]" role="alert">{{ error }}</p>
     </section>
   </main>
 </template>
-
-<style scoped>
-.landing {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 48px 24px;
-}
-
-.card {
-  width: min(100%, 560px);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 24px;
-  padding: 48px 32px;
-  border: 3px solid #111;
-  text-align: center;
-}
-
-h1 {
-  margin: 0;
-  font-size: 32px;
-  line-height: 1.2;
-}
-
-.tagline {
-  margin: 0;
-  font-size: 18px;
-  color: #444;
-}
-
-.error {
-  margin: 0;
-  color: #b00020;
-}
-
-@media (max-width: 640px) {
-  .card {
-    padding: 32px 20px;
-  }
-
-  h1 {
-    font-size: 26px;
-  }
-
-  /* the shared button shrinks to half width on phones; keep this one full */
-  .card :deep(.action-button) {
-    width: 100%;
-  }
-}
-</style>

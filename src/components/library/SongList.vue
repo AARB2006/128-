@@ -11,6 +11,9 @@ const props = defineProps({
 })
 defineEmits(['toggle', 'toggle-all'])
 
+// The look of every header cell.
+const th = 'bg-bg px-4 py-3 text-left text-[13px] font-bold tracking-[0.04em] text-muted uppercase'
+
 // One popup shared by all rows: which playlists contain the clicked song.
 const shown = ref(null)
 
@@ -22,22 +25,23 @@ watchEffect(() => {
 </script>
 
 <template>
-  <div class="table-wrap">
-    <table>
+  <div class="table-wrap overflow-hidden rounded-card border border-border bg-surface">
+    <table class="w-full border-collapse">
       <thead>
         <tr>
-          <th class="check">
+          <th :class="[th, 'check w-12']">
             <input
               ref="selectAll"
+              class="size-[18px] cursor-pointer"
               type="checkbox"
               :checked="allSelected"
               aria-label="Select all songs"
               @change="$emit('toggle-all')"
             />
           </th>
-          <th>Song</th>
-          <th class="playlists">Playlists</th>
-          <th class="added">Date added</th>
+          <th :class="th">Song</th>
+          <th :class="[th, 'playlists w-[200px] phone:w-[110px]']">Playlists</th>
+          <th :class="[th, 'added w-[190px] phone:hidden']">Date added</th>
         </tr>
       </thead>
       <tbody>
@@ -58,112 +62,27 @@ watchEffect(() => {
       @close="shown = null"
     >
       <template v-if="shown">
-        <p class="song-name">{{ shown.title }}</p>
-        <ul class="names">
-          <li v-for="playlist in shown.playlists" :key="playlist.playlist_id">
+        <p class="song-name mt-0 mb-3 text-muted wrap-anywhere">{{ shown.title }}</p>
+        <ul
+          class="names m-0 max-h-[min(48vh,320px)] list-none overflow-y-auto rounded-[10px] border border-border p-0"
+        >
+          <li
+            v-for="playlist in shown.playlists"
+            :key="playlist.playlist_id"
+            class="border-border not-first:border-t"
+          >
             <RouterLink
+              class="block p-3 font-bold text-text no-underline wrap-anywhere hover:bg-hover"
               :to="{ name: 'playlist', params: { playlistId: playlist.playlist_id } }"
             >
               {{ playlist.name }}
             </RouterLink>
           </li>
         </ul>
-        <div class="close">
+        <div class="close mt-5 flex justify-end">
           <button class="app-btn" type="button" @click="shown = null">Close</button>
         </div>
       </template>
     </AppDialog>
   </div>
 </template>
-
-<style scoped>
-.table-wrap {
-  overflow: hidden;
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius);
-  background: var(--c-surface);
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-th {
-  padding: 12px 16px;
-  background: var(--c-bg);
-  font-size: 13px;
-  font-weight: bold;
-  color: var(--c-muted);
-  text-align: left;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.check {
-  width: 48px;
-}
-
-.playlists {
-  width: 200px;
-}
-
-.added {
-  width: 190px;
-}
-
-input[type='checkbox'] {
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
-}
-
-@media (max-width: 640px) {
-  th.added {
-    display: none;
-  }
-
-  th.playlists {
-    width: 110px;
-  }
-}
-
-.song-name {
-  margin: 0 0 12px;
-  color: var(--c-muted);
-  overflow-wrap: anywhere;
-}
-
-.names {
-  max-height: min(48vh, 320px);
-  margin: 0;
-  padding: 0;
-  overflow-y: auto;
-  border: 1px solid var(--c-border);
-  border-radius: 10px;
-  list-style: none;
-}
-
-.names li + li {
-  border-top: 1px solid var(--c-border);
-}
-
-.names a {
-  display: block;
-  padding: 12px;
-  color: var(--c-text);
-  font-weight: bold;
-  text-decoration: none;
-  overflow-wrap: anywhere;
-}
-
-.names a:hover {
-  background: var(--c-hover);
-}
-
-.close {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 20px;
-}
-</style>

@@ -28,6 +28,9 @@ watch(
 
 const body = ref(null)
 
+// The look of every header cell (each adds its own left padding).
+const th = 'bg-bg py-3 pr-4 text-left text-[13px] font-bold tracking-[0.04em] text-muted uppercase'
+
 const reduceMotion =
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
@@ -60,22 +63,23 @@ const lastIndex = computed(() => rows.value.length - 1)
 </script>
 
 <template>
-  <div class="table-wrap">
-    <table>
+  <div class="table-wrap overflow-hidden rounded-card border border-border bg-surface">
+    <table class="w-full border-collapse">
       <thead>
         <tr>
-          <th class="check">
+          <th :class="[th, 'check w-12 pl-4']">
             <input
               ref="selectAll"
+              class="size-[18px] cursor-pointer"
               type="checkbox"
               :checked="allSelected"
               aria-label="Select all songs"
               @change="$emit('toggle-all')"
             />
           </th>
-          <th class="number">#</th>
-          <th>Song</th>
-          <th class="menu"><span class="visually-hidden">Actions</span></th>
+          <th :class="[th, 'number w-12 pl-0']">#</th>
+          <th :class="[th, 'pl-4']">Song</th>
+          <th :class="[th, 'menu w-14 pl-4']"><span class="visually-hidden">Actions</span></th>
         </tr>
       </thead>
       <tbody ref="body">
@@ -97,67 +101,3 @@ const lastIndex = computed(() => rows.value.length - 1)
     </table>
   </div>
 </template>
-
-<style scoped>
-.table-wrap {
-  overflow: hidden;
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius);
-  background: var(--c-surface);
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-th {
-  padding: 12px 16px;
-  background: var(--c-bg);
-  font-size: 13px;
-  font-weight: bold;
-  color: var(--c-muted);
-  text-align: left;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.check {
-  width: 48px;
-}
-
-th.number {
-  width: 48px;
-  padding-left: 0;
-}
-
-.menu {
-  width: 56px;
-}
-
-input[type='checkbox'] {
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
-}
-
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  border: 0;
-}
-
-/* The row being dragged: a faint placeholder where it will land. */
-:deep(tr.ghost td) {
-  opacity: 0.4;
-  background: var(--c-selected);
-}
-
-:deep(tr.chosen td) {
-  box-shadow: 0 2px 10px rgba(17, 24, 39, 0.12);
-}
-</style>

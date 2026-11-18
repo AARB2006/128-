@@ -49,7 +49,7 @@ async function onSubmit() {
   <section class="app-page">
     <h1 class="app-page-title">Add Playlist</h1>
 
-    <p class="app-muted intro">
+    <p class="app-muted intro mt-0 mb-5">
       Give your playlist a name. You can add songs from your Music Library once it's created.
     </p>
 
@@ -61,9 +61,9 @@ async function onSubmit() {
         id-prefix="new-playlist"
       />
 
-      <p v-if="error" class="app-alert message" role="alert">{{ error }}</p>
+      <p v-if="error" class="app-alert message mt-4 mb-0" role="alert">{{ error }}</p>
 
-      <div class="actions">
+      <div class="actions my-4 flex flex-wrap items-center justify-between gap-2">
         <RouterLink :to="{ name: 'playlists' }" class="app-btn">Back to Playlists</RouterLink>
 
         <button class="app-btn app-btn-primary" type="submit" :disabled="!canSubmit">
@@ -73,22 +73,3 @@ async function onSubmit() {
     </form>
   </section>
 </template>
-
-<style scoped>
-.intro {
-  margin: 0 0 20px;
-}
-
-.message {
-  margin: 16px 0 0;
-}
-
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin: 16px 0;
-}
-</style>

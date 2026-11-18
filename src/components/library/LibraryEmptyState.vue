@@ -1,7 +1,7 @@
 <template>
-  <div class="app-card empty">
-    <h2>Your library is empty</h2>
-    <p class="app-muted">
+  <div class="app-card empty flex flex-col items-center gap-2 px-6 py-12 text-center">
+    <h2 class="m-0 text-[20px]">Your library is empty</h2>
+    <p class="app-muted mt-0 mb-3">
       Import songs from YouTube links to start building your library.
     </p>
     <RouterLink :to="{ name: 'import' }" class="app-btn app-btn-primary">
@@ -9,23 +9,3 @@
     </RouterLink>
   </div>
 </template>
-
-<style scoped>
-.empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 48px 24px;
-  text-align: center;
-}
-
-h2 {
-  margin: 0;
-  font-size: 20px;
-}
-
-p {
-  margin: 0 0 12px;
-}
-</style>

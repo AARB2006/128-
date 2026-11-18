@@ -18,6 +18,20 @@ const collapsed = ref(false)
 const signingOut = ref(false)
 const signOutError = ref('')
 
+// Text beside an icon: hidden when the desktop sidebar is collapsed.
+const label = 'label desktop:group-[.collapsed]:hidden'
+
+// The collapse (desktop) and close (mobile) buttons.
+const iconBtn =
+  'icon-btn size-9 cursor-pointer items-center justify-center rounded-[10px] border-0 bg-transparent text-muted hover:bg-hover hover:text-text'
+
+// A navigation link, or the Log Out button. Hovering an item, even the active
+// one, shows the hover colour.
+const navItem =
+  'nav-item font-inherit flex w-full cursor-pointer items-center gap-3 rounded-[10px] border-0 bg-transparent px-3 py-2.5 text-left text-[15px] text-muted no-underline ' +
+  '[&.active]:bg-accent [&.active]:text-accent-text hover:not-disabled:bg-hover hover:not-disabled:text-text ' +
+  'disabled:cursor-not-allowed disabled:opacity-60 desktop:group-[.collapsed]:justify-center'
+
 const items = [
   { name: 'library', label: 'Music Library', icon: 'music' },
   { name: 'import', label: 'Import Music', icon: 'import' },
@@ -45,29 +59,36 @@ async function onSignOut() {
 </script>
 
 <template>
+  <!-- Desktop: a sticky column that can collapse to icons only.
+       Small screens: an off-canvas drawer opened from the top bar; `invisible`
+       keeps its hidden links out of the tab order. -->
   <aside
-    class="sidebar"
+    class="sidebar group flex w-[240px] shrink-0 flex-col gap-4 border-r border-border bg-surface px-3 py-4 desktop:sticky desktop:top-0 desktop:h-screen desktop:transition-[width] desktop:duration-[160ms] desktop:ease-[ease] desktop:[&.collapsed]:w-[72px] mobile:invisible mobile:fixed mobile:inset-y-0 mobile:left-0 mobile:z-30 mobile:w-[260px] mobile:-translate-x-full mobile:[transition:translate_160ms_ease,visibility_0s_linear_160ms] mobile:[&.open]:visible mobile:[&.open]:translate-none mobile:[&.open]:[transition:translate_160ms_ease,visibility_0s]"
     :class="{ collapsed, open: mobileOpen }"
     aria-label="Main navigation"
   >
-    <div class="sidebar-head">
-      <span class="brand">
+    <div
+      class="sidebar-head flex items-center justify-between gap-2 px-1 desktop:group-[.collapsed]:justify-center"
+    >
+      <span
+        class="brand inline-flex items-center gap-2.5 text-[18px] font-bold desktop:group-[.collapsed]:hidden"
+      >
         <SidebarIcon name="music" />
-        <span class="label">YT-MP3</span>
+        <span :class="label">YT-MP3</span>
       </span>
 
       <button
-        class="icon-btn collapse-btn"
+        :class="[iconBtn, 'collapse-btn inline-flex mobile:hidden']"
         type="button"
         :aria-label="collapsed ? 'Expand sidebar' : 'Collapse sidebar'"
         :aria-expanded="!collapsed"
         @click="collapsed = !collapsed"
       >
-        <SidebarIcon name="chevron" :class="{ flipped: collapsed }" />
+        <SidebarIcon name="chevron" :class="{ 'flipped rotate-180': collapsed }" />
       </button>
 
       <button
-        class="icon-btn close-btn"
+        :class="[iconBtn, 'close-btn hidden mobile:inline-flex']"
         type="button"
         aria-label="Close navigation"
         @click="emit('close')"
@@ -76,29 +97,39 @@ async function onSignOut() {
       </button>
     </div>
 
-    <nav class="nav">
+    <nav class="nav flex flex-col gap-1">
       <RouterLink
         v-for="item in items"
         :key="item.name"
         :to="{ name: item.name }"
-        class="nav-item"
+        :class="navItem"
         active-class="active"
         :title="collapsed ? item.label : undefined"
         :aria-label="item.label"
       >
         <SidebarIcon :name="item.icon" />
-        <span class="label">{{ item.label }}</span>
+        <span :class="label">{{ item.label }}</span>
       </RouterLink>
     </nav>
 
-    <div class="sidebar-foot">
-      <div v-if="displayName" class="user">
-        <span class="avatar" aria-hidden="true">{{ initial }}</span>
-        <span class="label user-name">{{ displayName }}</span>
+    <div class="sidebar-foot mt-auto flex flex-col gap-2 border-t border-border pt-3">
+      <div
+        v-if="displayName"
+        class="user flex items-center gap-2.5 px-3 py-1 desktop:group-[.collapsed]:justify-center desktop:group-[.collapsed]:px-0"
+      >
+        <span
+          class="avatar inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-hover text-[13px] font-bold"
+          aria-hidden="true"
+        >
+          {{ initial }}
+        </span>
+        <span :class="[label, 'user-name overflow-hidden text-[14px] text-ellipsis whitespace-nowrap']">
+          {{ displayName }}
+        </span>
       </div>
 
       <button
-        class="nav-item"
+        :class="navItem"
         type="button"
         :disabled="signingOut"
         :title="collapsed ? 'Log Out' : undefined"
@@ -106,207 +137,12 @@ async function onSignOut() {
         @click="onSignOut"
       >
         <SidebarIcon name="logout" />
-        <span class="label">{{ signingOut ? 'Logging out…' : 'Log Out' }}</span>
+        <span :class="label">{{ signingOut ? 'Logging out…' : 'Log Out' }}</span>
       </button>
 
-      <p v-if="signOutError" class="sign-out-error" role="alert">
+      <p v-if="signOutError" class="sign-out-error m-0 px-3 text-[13px] text-danger" role="alert">
         {{ signOutError }}
       </p>
     </div>
   </aside>
 </template>
-
-<style scoped>
-.sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  width: 240px;
-  flex-shrink: 0;
-  padding: 16px 12px;
-  border-right: 1px solid var(--c-border);
-  background: var(--c-surface);
-}
-
-.sidebar-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 0 4px;
-}
-
-.brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 18px;
-  font-weight: bold;
-}
-
-.icon-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border: 0;
-  border-radius: 10px;
-  background: transparent;
-  color: var(--c-muted);
-  cursor: pointer;
-}
-
-.icon-btn:hover {
-  background: var(--c-hover);
-  color: var(--c-text);
-}
-
-.flipped {
-  transform: rotate(180deg);
-}
-
-.close-btn {
-  display: none;
-}
-
-.nav {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 10px 12px;
-  border: 0;
-  border-radius: 10px;
-  background: transparent;
-  color: var(--c-muted);
-  font: inherit;
-  font-size: 15px;
-  text-align: left;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.nav-item:hover:not(:disabled) {
-  background: var(--c-hover);
-  color: var(--c-text);
-}
-
-.nav-item.active {
-  background: var(--c-accent);
-  color: var(--c-accent-text);
-}
-
-.nav-item:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.sidebar-foot {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: auto;
-  padding-top: 12px;
-  border-top: 1px solid var(--c-border);
-}
-
-.user {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 4px 12px;
-}
-
-.avatar {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  background: var(--c-hover);
-  font-size: 13px;
-  font-weight: bold;
-}
-
-.user-name {
-  overflow: hidden;
-  font-size: 14px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.sign-out-error {
-  margin: 0;
-  padding: 0 12px;
-  font-size: 13px;
-  color: var(--c-danger);
-}
-
-/* Desktop: sticky column that can collapse to icons only. */
-@media (min-width: 769px) {
-  .sidebar {
-    position: sticky;
-    top: 0;
-    height: 100vh;
-    transition: width 160ms ease;
-  }
-
-  .sidebar.collapsed {
-    width: 72px;
-  }
-
-  .sidebar.collapsed .label,
-  .sidebar.collapsed .brand {
-    display: none;
-  }
-
-  .sidebar.collapsed .sidebar-head {
-    justify-content: center;
-  }
-
-  .sidebar.collapsed .nav-item {
-    justify-content: center;
-  }
-
-  .sidebar.collapsed .user {
-    justify-content: center;
-    padding: 4px 0;
-  }
-}
-
-/* Small screens: off-canvas drawer opened from the top bar. */
-@media (max-width: 768px) {
-  .sidebar {
-    position: fixed;
-    inset: 0 auto 0 0;
-    z-index: 30;
-    width: 260px;
-    transform: translateX(-100%);
-    visibility: hidden; /* keeps hidden links out of the tab order */
-    transition: transform 160ms ease, visibility 0s linear 160ms;
-  }
-
-  .sidebar.open {
-    transform: none;
-    visibility: visible;
-    transition: transform 160ms ease, visibility 0s;
-  }
-
-  .collapse-btn {
-    display: none;
-  }
-
-  .close-btn {
-    display: inline-flex;
-  }
-}
-</style>

@@ -13,6 +13,18 @@ const props = defineProps({
 })
 const emit = defineEmits(['toggle', 'move-up', 'move-down', 'remove'])
 
+// Shared by every cell (each adds its own left padding). The row is a `group`:
+// cells turn blue when it's selected, and the drag library's `ghost` (the
+// placeholder where the row will land) and `chosen` (the row being dragged)
+// classes on the row style the cells too.
+const cell =
+  'border-t border-border bg-surface py-3.5 pr-4 align-middle group-[.selected]:bg-selected ' +
+  'group-[.ghost]:bg-selected group-[.ghost]:opacity-40 ' +
+  'group-[.chosen]:shadow-[0_2px_10px_rgba(17,24,39,0.12)]'
+
+// Rows can be grabbed anywhere (except the checkbox and link), so show it.
+const grab = 'group-[.movable]:cursor-grab'
+
 // Only ever link to http(s) addresses, never to anything like javascript:.
 const safeUrl = computed(() =>
   /^https?:\/\//i.test(props.song.source_url) ? props.song.source_url : null,
@@ -46,9 +58,10 @@ function onMenu(key) {
 </script>
 
 <template>
-  <tr :class="{ selected, movable: canMove }">
-    <td class="check">
+  <tr class="group" :class="{ selected, movable: canMove }">
+    <td :class="[cell, 'check w-12 pl-4 group-[.movable]:cursor-pointer']">
       <input
+        class="size-[18px] cursor-pointer"
         type="checkbox"
         :checked="selected"
         :aria-label="`Select ${song.title}`"
@@ -56,13 +69,15 @@ function onMenu(key) {
       />
     </td>
 
-    <td class="number">{{ number }}</td>
+    <td :class="[cell, grab, 'number w-12 pl-0 text-[14px] text-muted tabular-nums']">
+      {{ number }}
+    </td>
 
-    <td class="song">
-      <span class="title">{{ song.title }}</span>
+    <td :class="[cell, grab, 'song pl-4 wrap-anywhere']">
+      <span class="title block font-bold">{{ song.title }}</span>
       <a
         v-if="safeUrl"
-        class="source"
+        class="source mt-0.5 block text-[13px] text-muted group-[.movable]:cursor-pointer"
         :href="safeUrl"
         target="_blank"
         rel="noopener noreferrer"
@@ -70,74 +85,11 @@ function onMenu(key) {
       >
         {{ safeUrl }}
       </a>
-      <span v-else class="source">{{ song.source_url }}</span>
+      <span v-else class="source mt-0.5 block text-[13px] text-muted">{{ song.source_url }}</span>
     </td>
 
-    <td class="menu">
+    <td :class="[cell, grab, 'menu w-14 pl-0 text-right']">
       <RowMenu :items="items" :label="`Actions for ${song.title}`" @select="onMenu" />
     </td>
   </tr>
 </template>
-
-<style scoped>
-td {
-  padding: 14px 16px;
-  border-top: 1px solid var(--c-border);
-  vertical-align: middle;
-  background: var(--c-surface);
-}
-
-tr.selected td {
-  background: var(--c-selected);
-}
-
-/* Rows can be grabbed anywhere, so show it. */
-tr.movable td {
-  cursor: grab;
-}
-
-tr.movable td.check,
-tr.movable td.song a {
-  cursor: pointer;
-}
-
-.check {
-  width: 48px;
-}
-
-.number {
-  width: 48px;
-  padding-left: 0;
-  font-size: 14px;
-  font-variant-numeric: tabular-nums;
-  color: var(--c-muted);
-}
-
-.song {
-  overflow-wrap: anywhere;
-}
-
-.title {
-  display: block;
-  font-weight: bold;
-}
-
-.source {
-  display: block;
-  margin-top: 2px;
-  font-size: 13px;
-  color: var(--c-muted);
-}
-
-.menu {
-  width: 56px;
-  padding-left: 0;
-  text-align: right;
-}
-
-input[type='checkbox'] {
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
-}
-</style>

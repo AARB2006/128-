@@ -12,14 +12,37 @@ const active = computed(() => props.phase === 'starting' || props.phase === 'run
 
 // Before the first link finishes the bar would be empty, so give it a sliver.
 const width = computed(() => (active.value ? Math.max(props.percent, 4) : props.percent))
+
+// The bar's look in each phase. The animations (import-stripes, import-slide)
+// are defined in app.css. Picked here rather than with competing classes, so
+// only one width, transition and animation ever applies. Class names must be
+// written out in full (not built from pieces) so Tailwind can find them.
+const fillClass = computed(() => {
+  const sliding = props.phase === 'starting'
+  return [
+    active.value &&
+      'bg-[image:repeating-linear-gradient(135deg,rgba(255,255,255,0.22)_0_10px,transparent_10px_20px)] bg-[length:28px_28px] motion-reduce:animate-none',
+    sliding
+      ? // Before the first progress arrives: a bar sliding back and forth.
+        'w-[35%] transition-none animate-[import-stripes_0.9s_linear_infinite,import-slide_1.3s_ease-in-out_infinite] motion-reduce:w-full'
+      : 'w-0 transition-[width] duration-500 ease-[ease] motion-reduce:transition-none',
+    // While work is running: light stripes drifting across the dark bar.
+    active.value && !sliding && 'animate-[import-stripes_0.9s_linear_infinite]',
+  ]
+})
 </script>
 
 <template>
-  <div class="progress" :class="{ failed }" role="status" aria-live="polite">
-    <p class="label">{{ label }}</p>
+  <div
+    class="progress group rounded-card border border-border bg-surface px-4.5 py-4"
+    :class="{ failed }"
+    role="status"
+    aria-live="polite"
+  >
+    <p class="label mt-0 mb-2.5 text-[16px] font-bold tabular-nums">{{ label }}</p>
 
     <div
-      class="track"
+      class="track relative h-3.5 overflow-hidden rounded-full bg-hover shadow-[inset_0_0_0_1px_var(--c-border)]"
       role="progressbar"
       aria-valuemin="0"
       aria-valuemax="100"
@@ -27,99 +50,10 @@ const width = computed(() => (active.value ? Math.max(props.percent, 4) : props.
       :aria-label="label"
     >
       <div
-        class="fill"
-        :class="{ active, sliding: phase === 'starting' }"
+        class="fill absolute inset-y-0 left-0 rounded-full bg-accent group-[.failed]:bg-danger"
+        :class="[{ active, sliding: phase === 'starting' }, fillClass]"
         :style="phase === 'starting' ? undefined : { width: `${width}%` }"
       ></div>
     </div>
   </div>
 </template>
-
-<style scoped>
-.progress {
-  padding: 16px 18px;
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius);
-  background: var(--c-surface);
-}
-
-.label {
-  margin: 0 0 10px;
-  font-size: 16px;
-  font-weight: bold;
-  font-variant-numeric: tabular-nums;
-}
-
-.track {
-  position: relative;
-  height: 14px;
-  overflow: hidden;
-  border-radius: 999px; /* fully rounded, like the buttons and cards */
-  background: var(--c-hover);
-  box-shadow: inset 0 0 0 1px var(--c-border);
-}
-
-.fill {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 0;
-  border-radius: 999px;
-  background-color: var(--c-accent);
-  transition: width 500ms ease;
-}
-
-.failed .fill {
-  background-color: var(--c-danger);
-}
-
-/* While work is running: light stripes drifting across the dark bar. */
-.fill.active {
-  background-image: repeating-linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.22) 0 10px,
-    transparent 10px 20px
-  );
-  background-size: 28px 28px;
-  animation: stripes 0.9s linear infinite;
-}
-
-/* Before the first progress arrives: a bar sliding back and forth. */
-.fill.sliding {
-  width: 35%;
-  animation:
-    stripes 0.9s linear infinite,
-    slide 1.3s ease-in-out infinite;
-  transition: none;
-}
-
-@keyframes stripes {
-  to {
-    background-position: 28px 0;
-  }
-}
-
-@keyframes slide {
-  0% {
-    left: -35%;
-  }
-
-  100% {
-    left: 100%;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .fill.active,
-  .fill.sliding {
-    animation: none;
-  }
-
-  .fill.sliding {
-    width: 100%;
-  }
-
-  .fill {
-    transition: none;
-  }
-}
-</style>

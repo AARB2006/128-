@@ -114,11 +114,20 @@ async function onConfirmDelete() {
 }
 
 const description = computed(() => playlist.value?.description || '')
+
+// Shared by the name and description buttons: plain text until hovered.
+const edit =
+  'edit font-inherit -ml-1.5 block max-w-full cursor-pointer rounded-[8px] border-0 bg-transparent px-1.5 py-0.5 text-left wrap-anywhere hover:bg-hover'
 </script>
 
 <template>
   <section class="app-page">
-    <RouterLink :to="{ name: 'playlists' }" class="back">← Playlists</RouterLink>
+    <RouterLink
+      :to="{ name: 'playlists' }"
+      class="back mb-4 inline-block text-[14px] text-muted no-underline hover:text-text hover:underline"
+    >
+      ← Playlists
+    </RouterLink>
 
     <p v-if="loading" class="app-muted">Loading this playlist…</p>
 
@@ -127,19 +136,23 @@ const description = computed(() => playlist.value?.description || '')
       <button class="app-btn" type="button" @click="load()">Try again</button>
     </div>
 
-    <div v-else-if="notFound" class="app-card missing">
-      <h1>Playlist not found</h1>
-      <p class="app-muted">It may have been deleted, or the link is wrong.</p>
+    <div
+      v-else-if="notFound"
+      class="app-card missing flex flex-col items-center gap-2 px-6 py-12 text-center"
+    >
+      <h1 class="m-0 text-[20px]">Playlist not found</h1>
+      <p class="app-muted mt-0 mb-3">It may have been deleted, or the link is wrong.</p>
       <RouterLink :to="{ name: 'playlists' }" class="app-btn app-btn-primary">
         Back to Playlists
       </RouterLink>
     </div>
 
     <template v-else-if="playlist">
-      <header class="head">
-        <h1 class="name">
+      <!-- The name and description look like text but can be clicked to edit. -->
+      <header class="head mb-5">
+        <h1 class="name m-0 text-[32px] leading-[1.2]">
           <button
-            class="edit name-button"
+            :class="[edit, 'name-button text-[32px] leading-[1.2] font-bold text-inherit']"
             type="button"
             title="Edit name"
             @click="openEdit('name')"
@@ -148,8 +161,11 @@ const description = computed(() => playlist.value?.description || '')
           </button>
         </h1>
         <button
-          class="edit description-button"
-          :class="{ 'is-empty': !description }"
+          :class="[
+            edit,
+            'description-button mt-1 text-[15px] leading-[1.5] whitespace-pre-line text-muted [&.is-empty]:italic',
+            { 'is-empty': !description },
+          ]"
           type="button"
           :title="description ? 'Edit description' : 'Add a description'"
           @click="openEdit('description')"
@@ -166,7 +182,7 @@ const description = computed(() => playlist.value?.description || '')
         </template>
 
         <template #right>
-          <span v-if="selectedCount" class="count" aria-live="polite">
+          <span v-if="selectedCount" class="count text-[14px] text-muted" aria-live="polite">
             {{ selectedCount }} selected
           </span>
           <button
@@ -197,9 +213,12 @@ const description = computed(() => playlist.value?.description || '')
         {{ actionError }}
       </p>
 
-      <div v-if="!songs.length" class="app-card empty">
-        <h2>This playlist is empty</h2>
-        <p class="app-muted">Add songs from your Music Library.</p>
+      <div
+        v-if="!songs.length"
+        class="app-card empty flex flex-col items-center gap-2 px-6 py-12 text-center"
+      >
+        <h2 class="m-0 text-[20px]">This playlist is empty</h2>
+        <p class="app-muted mt-0 mb-3">Add songs from your Music Library.</p>
         <button class="app-btn app-btn-primary" type="button" @click="openPicker">
           Add Song
         </button>
@@ -254,92 +273,3 @@ const description = computed(() => playlist.value?.description || '')
     </template>
   </section>
 </template>
-
-<style scoped>
-.back {
-  display: inline-block;
-  margin-bottom: 16px;
-  font-size: 14px;
-  color: var(--c-muted);
-  text-decoration: none;
-}
-
-.back:hover {
-  color: var(--c-text);
-  text-decoration: underline;
-}
-
-.head {
-  margin-bottom: 20px;
-}
-
-.name {
-  margin: 0;
-  font-size: 32px;
-  line-height: 1.2;
-}
-
-/* The name and description look like text but can be clicked to edit. */
-.edit {
-  display: block;
-  max-width: 100%;
-  padding: 2px 6px;
-  margin-left: -6px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  overflow-wrap: anywhere;
-  cursor: pointer;
-}
-
-.edit:hover {
-  background: var(--c-hover);
-}
-
-.name-button {
-  font-size: 32px;
-  font-weight: bold;
-  line-height: 1.2;
-}
-
-.description-button {
-  margin-top: 4px;
-  font-size: 15px;
-  line-height: 1.5;
-  color: var(--c-muted);
-  white-space: pre-line;
-}
-
-.description-button.is-empty {
-  font-style: italic;
-}
-
-.count {
-  font-size: 14px;
-  color: var(--c-muted);
-}
-
-.empty,
-.missing {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 48px 24px;
-  text-align: center;
-}
-
-.empty h2,
-.missing h1 {
-  margin: 0;
-  font-size: 20px;
-}
-
-.empty p,
-.missing p {
-  margin: 0 0 12px;
-}
-</style>

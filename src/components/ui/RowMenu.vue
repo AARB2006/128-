@@ -105,7 +105,7 @@ onBeforeUnmount(closeMenu)
 <template>
   <button
     ref="button"
-    class="dots"
+    class="dots inline-flex size-9 cursor-pointer items-center justify-center rounded-[10px] border-0 bg-transparent text-muted hover:bg-hover hover:text-text aria-expanded:bg-hover aria-expanded:text-text"
     type="button"
     aria-haspopup="menu"
     :aria-expanded="open"
@@ -119,11 +119,13 @@ onBeforeUnmount(closeMenu)
     </svg>
   </button>
 
+  <!-- The menu is teleported to <body>, outside .app-shell, so the --c-*
+       tokens don't reach it: its colours are written out literally. -->
   <Teleport to="body">
     <div
       v-if="open"
       ref="menu"
-      class="row-menu"
+      class="row-menu fixed z-50 box-border w-[200px] rounded-[12px] border border-[#e3e6ea] bg-[#ffffff] p-1 shadow-[0_8px_24px_rgba(17,24,39,0.14)]"
       role="menu"
       :aria-label="label"
       :style="{ top: position.top + 'px', left: position.left + 'px' }"
@@ -132,8 +134,8 @@ onBeforeUnmount(closeMenu)
       <button
         v-for="item in items"
         :key="item.key"
-        class="item"
-        :class="{ danger: item.danger }"
+        class="item font-inherit block h-10 w-full cursor-pointer rounded-[8px] border-0 bg-transparent px-3 py-0 text-left text-[15px] focus-visible:bg-[#f0f2f5] focus-visible:outline-none enabled:hover:bg-[#f0f2f5] disabled:cursor-not-allowed disabled:opacity-45"
+        :class="item.danger ? 'danger text-[#b42318]' : 'text-[#111827]'"
         type="button"
         role="menuitem"
         :disabled="item.disabled"
@@ -145,70 +147,3 @@ onBeforeUnmount(closeMenu)
     </div>
   </Teleport>
 </template>
-
-<style scoped>
-.dots {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border: 0;
-  border-radius: 10px;
-  background: transparent;
-  color: var(--c-muted);
-  cursor: pointer;
-}
-
-.dots:hover,
-.dots[aria-expanded='true'] {
-  background: var(--c-hover);
-  color: var(--c-text);
-}
-</style>
-
-<!-- The menu is teleported to <body>, outside .app-shell, so it carries its own
-     colours instead of inheriting the app's CSS variables. -->
-<style>
-.row-menu {
-  position: fixed;
-  z-index: 50;
-  box-sizing: border-box;
-  width: 200px;
-  padding: 4px;
-  border: 1px solid #e3e6ea;
-  border-radius: 12px;
-  background: #ffffff;
-  box-shadow: 0 8px 24px rgba(17, 24, 39, 0.14);
-}
-
-.row-menu .item {
-  display: block;
-  width: 100%;
-  height: 40px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: #111827;
-  font: inherit;
-  font-size: 15px;
-  text-align: left;
-  cursor: pointer;
-}
-
-.row-menu .item:hover:not(:disabled),
-.row-menu .item:focus-visible {
-  background: #f0f2f5;
-  outline: none;
-}
-
-.row-menu .item.danger {
-  color: #b42318;
-}
-
-.row-menu .item:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-</style>

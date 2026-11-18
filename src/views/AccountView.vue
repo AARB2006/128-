@@ -49,16 +49,19 @@ onMounted(async () => {
     <div class="app-card">
       <p v-if="loading" class="app-muted">Loading…</p>
 
-      <dl v-else-if="profile" class="details">
-        <dt>Name</dt>
-        <dd>{{ profile.display_name }}</dd>
-        <dt>Email</dt>
-        <dd>{{ profile.email }}</dd>
+      <dl v-else-if="profile" class="details m-0 grid grid-cols-[auto_1fr] gap-x-6 gap-y-2">
+        <dt class="font-bold">Name</dt>
+        <dd class="m-0 wrap-anywhere">{{ profile.display_name }}</dd>
+        <dt class="font-bold">Email</dt>
+        <dd class="m-0 wrap-anywhere">{{ profile.email }}</dd>
       </dl>
 
       <p v-if="error" class="app-alert" role="alert">{{ error }}</p>
 
-      <p v-if="isDev && visibleProfiles !== null" class="dev-check">
+      <p
+        v-if="isDev && visibleProfiles !== null"
+        class="dev-check mt-4 mb-0 text-[14px] text-muted"
+      >
         Data separation check: you can see {{ visibleProfiles }} profile
         row(s). Expected: 1.
         <strong>{{ visibleProfiles === 1 ? 'OK' : 'CHECK RLS' }}</strong>
@@ -66,27 +69,3 @@ onMounted(async () => {
     </div>
   </section>
 </template>
-
-<style scoped>
-.details {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 8px 24px;
-  margin: 0;
-}
-
-dt {
-  font-weight: bold;
-}
-
-dd {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-
-.dev-check {
-  margin: 16px 0 0;
-  font-size: 14px;
-  color: var(--c-muted);
-}
-</style>

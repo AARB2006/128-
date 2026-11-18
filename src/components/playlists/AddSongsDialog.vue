@@ -38,6 +38,9 @@ function addSelected() {
   )
 }
 
+// Every checkbox in the popup, including "Select all".
+const checkbox = 'mt-0.5 size-[18px] shrink-0 cursor-pointer'
+
 const selectAll = ref(null)
 watchEffect(() => {
   if (selectAll.value) selectAll.value.indeterminate = someSelected.value
@@ -61,19 +64,20 @@ watchEffect(() => {
     <template v-else>
       <input
         v-model="query"
-        class="search"
+        class="search font-inherit mb-3 min-h-11 w-full rounded-[10px] border border-border bg-surface px-4 py-0 text-[15px] text-text"
         type="search"
         placeholder="Search songs"
         aria-label="Search songs to add"
         :disabled="busy"
       />
 
-      <p v-if="!results.length" class="app-muted none">No songs match “{{ query }}”.</p>
+      <p v-if="!results.length" class="app-muted none m-0">No songs match “{{ query }}”.</p>
 
       <template v-else>
-        <label class="all">
+        <label class="all flex cursor-pointer items-center gap-3 px-3 py-1.5 text-[14px] text-muted">
           <input
             ref="selectAll"
+            :class="checkbox"
             type="checkbox"
             :checked="allSelected"
             :disabled="busy"
@@ -82,18 +86,24 @@ watchEffect(() => {
           <span>Select all{{ query.trim() ? ' shown' : '' }}</span>
         </label>
 
-        <ul class="list">
-          <li v-for="song in results" :key="song.song_id">
-            <label class="row" :class="{ selected: selectedIds.has(song.song_id) }">
+        <ul
+          class="list m-0 max-h-[min(48vh,360px)] list-none overflow-y-auto rounded-[10px] border border-border p-0"
+        >
+          <li v-for="(song, index) in results" :key="song.song_id">
+            <label
+              class="row flex cursor-pointer items-start gap-3 border-border px-3 py-2.5 [&.selected]:bg-selected"
+              :class="{ selected: selectedIds.has(song.song_id), 'border-t': index > 0 }"
+            >
               <input
+                :class="checkbox"
                 type="checkbox"
                 :checked="selectedIds.has(song.song_id)"
                 :disabled="busy"
                 @change="toggle(song.song_id)"
               />
-              <span class="text">
-                <span class="title">{{ song.title }}</span>
-                <span class="source">{{ song.source_url }}</span>
+              <span class="text min-w-0 wrap-anywhere">
+                <span class="title block font-bold">{{ song.title }}</span>
+                <span class="source block text-[13px] text-muted">{{ song.source_url }}</span>
               </span>
             </label>
           </li>
@@ -101,10 +111,12 @@ watchEffect(() => {
       </template>
     </template>
 
-    <p v-if="error" class="app-alert message" role="alert">{{ error }}</p>
+    <p v-if="error" class="app-alert message mt-4 mb-0" role="alert">{{ error }}</p>
 
-    <div class="buttons">
-      <span v-if="count" class="count" aria-live="polite">{{ count }} selected</span>
+    <div class="buttons mt-5 flex items-center justify-end gap-2">
+      <span v-if="count" class="count mr-auto text-[14px] text-muted" aria-live="polite">
+        {{ count }} selected
+      </span>
       <button class="app-btn" type="button" :disabled="busy" @click="emit('cancel')">
         Cancel
       </button>
@@ -119,101 +131,3 @@ watchEffect(() => {
     </div>
   </AppDialog>
 </template>
-
-<style scoped>
-.search {
-  width: 100%;
-  min-height: 44px;
-  margin-bottom: 12px;
-  padding: 0 16px;
-  border: 1px solid var(--c-border);
-  border-radius: 10px;
-  background: var(--c-surface);
-  color: var(--c-text);
-  font: inherit;
-  font-size: 15px;
-}
-
-.none {
-  margin: 0;
-}
-
-.all {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 6px 12px;
-  font-size: 14px;
-  color: var(--c-muted);
-  cursor: pointer;
-}
-
-.list {
-  max-height: min(48vh, 360px);
-  margin: 0;
-  padding: 0;
-  overflow-y: auto;
-  border: 1px solid var(--c-border);
-  border-radius: 10px;
-  list-style: none;
-}
-
-.row {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 10px 12px;
-  border-top: 1px solid var(--c-border);
-  cursor: pointer;
-}
-
-li:first-child .row {
-  border-top: 0;
-}
-
-.row.selected {
-  background: var(--c-selected);
-}
-
-.text {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.title {
-  display: block;
-  font-weight: bold;
-}
-
-.source {
-  display: block;
-  font-size: 13px;
-  color: var(--c-muted);
-}
-
-input[type='checkbox'] {
-  width: 18px;
-  height: 18px;
-  margin-top: 2px;
-  flex-shrink: 0;
-  cursor: pointer;
-}
-
-.message {
-  margin: 16px 0 0;
-}
-
-.buttons {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 20px;
-}
-
-.count {
-  margin-right: auto;
-  font-size: 14px;
-  color: var(--c-muted);
-}
-</style>

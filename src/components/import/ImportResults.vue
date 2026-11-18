@@ -5,29 +5,33 @@ defineProps({
 </script>
 
 <template>
-  <div class="app-card results" role="status">
-    <p class="headline">{{ summary.headline }}</p>
+  <div class="app-card results flex flex-col items-start gap-2" role="status">
+    <p class="headline m-0 text-[18px] font-bold">{{ summary.headline }}</p>
 
-    <p v-if="summary.duplicates" class="app-muted">
+    <p v-if="summary.duplicates" class="app-muted m-0">
       {{ summary.duplicates }}
       {{ summary.duplicates === 1 ? 'link was' : 'links were' }} already in your library
       or repeated.
     </p>
 
     <template v-if="summary.problems.length">
-      <p class="problems-title">
+      <p class="problems-title mt-2 mb-0 font-bold text-danger">
         {{ summary.problems.length }}
         {{ summary.problems.length === 1 ? 'link' : 'links' }} could not be imported:
       </p>
 
-      <ul class="problems">
-        <li v-for="problem in summary.problems" :key="problem.line">
+      <ul class="problems m-0 flex w-full list-none flex-col gap-2 p-0">
+        <li
+          v-for="problem in summary.problems"
+          :key="problem.line"
+          class="flex flex-col gap-0.5 rounded-[10px] border border-danger-border bg-danger-bg px-3.5 py-2.5 text-[14px] text-danger"
+        >
           <span>Link {{ problem.line }}: {{ problem.reason }}</span>
-          <code>{{ problem.url }}</code>
+          <code class="text-[13px] wrap-anywhere opacity-85">{{ problem.url }}</code>
         </li>
       </ul>
 
-      <p class="app-muted hint">
+      <p class="app-muted hint m-0 text-[14px]">
         Those links are back in the box above so you can fix them and try again.
       </p>
     </template>
@@ -35,69 +39,9 @@ defineProps({
     <RouterLink
       v-if="summary.added"
       :to="{ name: 'library' }"
-      class="app-btn app-btn-primary"
+      class="app-btn app-btn-primary mt-2"
     >
       View Music Library
     </RouterLink>
   </div>
 </template>
-
-<style scoped>
-.results {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-}
-
-p {
-  margin: 0;
-}
-
-.headline {
-  font-size: 18px;
-  font-weight: bold;
-}
-
-.problems-title {
-  margin-top: 8px;
-  color: var(--c-danger);
-  font-weight: bold;
-}
-
-.problems {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  width: 100%;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.problems li {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 10px 14px;
-  border: 1px solid #fecdca;
-  border-radius: 10px;
-  background: var(--c-danger-bg);
-  color: var(--c-danger);
-  font-size: 14px;
-}
-
-code {
-  overflow-wrap: anywhere;
-  font-size: 13px;
-  opacity: 0.85;
-}
-
-.hint {
-  font-size: 14px;
-}
-
-.results .app-btn {
-  margin-top: 8px;
-}
-</style>

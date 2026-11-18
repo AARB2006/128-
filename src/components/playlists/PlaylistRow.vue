@@ -11,6 +11,10 @@ defineEmits(['toggle'])
 
 const router = useRouter()
 
+// Shared by every cell (each adds its own left padding). The row is a `group`,
+// so cells turn blue when it's selected.
+const cell = 'border-t border-border py-3.5 pr-4 align-middle group-[.selected]:bg-selected'
+
 const created = computed(() =>
   new Date(props.playlist.created_at).toLocaleString(undefined, {
     dateStyle: 'medium',
@@ -37,9 +41,10 @@ function onMenu(key) {
 </script>
 
 <template>
-  <tr :class="{ selected }">
-    <td class="check">
+  <tr class="group" :class="{ selected }">
+    <td :class="[cell, 'check w-12 pl-4']">
       <input
+        class="size-[18px] cursor-pointer"
         type="checkbox"
         :checked="selected"
         :aria-label="`Select ${playlist.name}`"
@@ -47,94 +52,30 @@ function onMenu(key) {
       />
     </td>
 
-    <td class="name-cell">
+    <td :class="[cell, 'name-cell pl-4 wrap-anywhere']">
       <RouterLink
-        class="name"
+        class="name block font-bold text-text no-underline hover:underline"
         :to="{ name: 'playlist', params: { playlistId: playlist.playlist_id } }"
       >
         {{ playlist.name }}
       </RouterLink>
-      <span v-if="playlist.description" class="description">{{ playlist.description }}</span>
+      <span
+        v-if="playlist.description"
+        class="description mt-0.5 line-clamp-1 text-[13px] text-muted"
+      >
+        {{ playlist.description }}
+      </span>
     </td>
 
-    <td class="created">{{ created }}</td>
-    <td class="songs">{{ playlist.song_count }}</td>
+    <td :class="[cell, 'created w-[190px] pl-4 text-[14px] whitespace-nowrap text-muted phone:hidden']">
+      {{ created }}
+    </td>
+    <td :class="[cell, 'songs w-[130px] pl-4 text-[14px] tabular-nums']">
+      {{ playlist.song_count }}
+    </td>
 
-    <td class="menu">
+    <td :class="[cell, 'menu w-14 pl-0 text-right']">
       <RowMenu :items="menuItems" :label="`Actions for ${playlist.name}`" @select="onMenu" />
     </td>
   </tr>
 </template>
-
-<style scoped>
-td {
-  padding: 14px 16px;
-  border-top: 1px solid var(--c-border);
-  vertical-align: middle;
-}
-
-tr.selected td {
-  background: var(--c-selected);
-}
-
-.check {
-  width: 48px;
-}
-
-.name-cell {
-  overflow-wrap: anywhere;
-}
-
-.name {
-  display: block;
-  color: var(--c-text);
-  font-weight: bold;
-  text-decoration: none;
-}
-
-.name:hover {
-  text-decoration: underline;
-}
-
-.description {
-  display: -webkit-box;
-  margin-top: 2px;
-  overflow: hidden;
-  font-size: 13px;
-  color: var(--c-muted);
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 1;
-  line-clamp: 1;
-}
-
-.created {
-  width: 190px;
-  font-size: 14px;
-  color: var(--c-muted);
-  white-space: nowrap;
-}
-
-.songs {
-  width: 130px;
-  font-size: 14px;
-  font-variant-numeric: tabular-nums;
-}
-
-.menu {
-  width: 56px;
-  padding-left: 0;
-  text-align: right;
-}
-
-input[type='checkbox'] {
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
-}
-
-@media (max-width: 640px) {
-  .created {
-    display: none;
-  }
-}
-</style>

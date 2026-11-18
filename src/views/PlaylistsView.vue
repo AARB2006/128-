@@ -49,7 +49,7 @@ async function onConfirmDelete() {
       </template>
 
       <template #right>
-        <span v-if="selectedCount" class="count" aria-live="polite">
+        <span v-if="selectedCount" class="count text-[14px] text-muted" aria-live="polite">
           {{ selectedCount }} selected
         </span>
         <button
@@ -72,9 +72,12 @@ async function onConfirmDelete() {
       <button class="app-btn" type="button" @click="load()">Try again</button>
     </div>
 
-    <div v-else-if="!playlists.length" class="app-card empty">
-      <h2>No playlists yet</h2>
-      <p class="app-muted">Create a playlist, then add songs from your Music Library.</p>
+    <div
+      v-else-if="!playlists.length"
+      class="app-card empty flex flex-col items-center gap-2 px-6 py-12 text-center"
+    >
+      <h2 class="m-0 text-[20px]">No playlists yet</h2>
+      <p class="app-muted mt-0 mb-3">Create a playlist, then add songs from your Music Library.</p>
       <RouterLink :to="{ name: 'playlist-new' }" class="app-btn app-btn-primary">
         Add Playlist
       </RouterLink>
@@ -102,28 +105,3 @@ async function onConfirmDelete() {
     />
   </section>
 </template>
-
-<style scoped>
-.count {
-  font-size: 14px;
-  color: var(--c-muted);
-}
-
-.empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 48px 24px;
-  text-align: center;
-}
-
-.empty h2 {
-  margin: 0;
-  font-size: 20px;
-}
-
-.empty p {
-  margin: 0 0 12px;
-}
-</style>

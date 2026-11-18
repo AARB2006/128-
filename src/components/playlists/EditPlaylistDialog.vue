@@ -54,11 +54,11 @@ function onSubmit() {
         id-prefix="edit-playlist"
       />
 
-      <p v-if="problem || error" class="app-alert message" role="alert">
+      <p v-if="problem || error" class="app-alert message mt-4 mb-0" role="alert">
         {{ problem || error }}
       </p>
 
-      <div class="buttons">
+      <div class="buttons mt-5 flex justify-end gap-2">
         <button class="app-btn" type="button" :disabled="busy" @click="emit('cancel')">
           Cancel
         </button>
@@ -69,16 +69,3 @@ function onSubmit() {
     </form>
   </AppDialog>
 </template>
-
-<style scoped>
-.message {
-  margin: 16px 0 0;
-}
-
-.buttons {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 20px;
-}
-</style>

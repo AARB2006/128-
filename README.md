@@ -50,12 +50,13 @@ Each user has a private library. If two users import the same YouTube video, eac
   - Live search by title or link.
   - Select one, several, or all songs.
   - Delete with a confirmation dialog. Deleting a song also removes it from your own playlists.
-  - A **Playlists** column showing how many playlists each song is in. Click it to see their names.
-  - **Add to Playlist:** add the selected songs to one of your playlists. Songs already in that playlist are skipped, and a message says how many were added.
+  - A **Playlists** column showing how many playlists each song is in. Click it for a popup listing those playlists, each linking to its page.
+  - **Add to Playlist:** pick one of your playlists (shown with their song counts) for the selected songs. Songs are added in library order, songs already in that playlist are skipped, and a message says how many were added. If you have no playlists yet, the popup links to Add Playlist.
   - An empty state for new accounts.
 - **Import Music:**
   - Paste up to 10 YouTube links, one per line. Blank lines are ignored.
-  - Accepted formats: `youtube.com/watch?v=`, `youtu.be/`, `/embed/`, `/live/`, `music.youtube.com/watch?v=`.
+  - Accepted formats: `youtube.com/watch?v=` (also `www.`, `m.` and `music.`), `youtu.be/`, `/shorts/`, `/embed/`, `/live/`, `/v/`, and `youtube-nocookie.com/embed/`. Links pasted without `https://` are accepted too.
+  - Videos are rejected if they're private, members-only, Premium-only, age-restricted, live or upcoming, or longer than `MAX_VIDEO_SECONDS` (default 30 minutes).
   - Each link is checked on its own. A bad link doesn't cancel the others.
   - An animated progress bar shows "Importing Music 2/3..." while the import runs.
   - When it finishes, you see a summary: songs added, duplicates skipped, and each failed link with its reason. Failed links go back in the box so you can fix them and retry.
@@ -63,22 +64,23 @@ Each user has a private library. If two users import the same YouTube video, eac
   - Daily quota per user (default 100 links per rolling 24 hours), set by `DAILY_IMPORT_LIMIT`.
   - Only one import can run at a time per user.
 - **Playlists page:**
-  - Lists your playlists, newest first, with the date created and the number of songs.
-  - Live search by playlist name.
-  - Select one, several, or all playlists and delete them after a confirmation. The songs stay in your library.
-  - Each row has a menu with **Edit playlist** (and **Export playlist**, disabled until export is built).
+  - Lists your playlists, newest first, with the name, description, date created and number of songs.
+  - Live search by playlist name or description.
+  - Select one, several, or all playlists and delete them after a confirmation (which names the playlist when only one is selected). The songs stay in your library.
+  - Each row has a ⋮ menu with **Edit playlist**, which opens the playlist, and **Export playlist**, which is disabled until export is built.
   - An empty state when you have no playlists.
-- **Add Playlist page:** give the playlist a name (required, up to 100 characters) and an optional description (up to 500 characters).
+- **Add Playlist page:** give the playlist a name (required, up to 100 characters) and an optional description (up to 500 characters, with a live counter). After saving you go straight to the new playlist so you can add songs.
 - **Playlist page** (open a playlist from the list):
-  - Click the name or description to edit them.
-  - **Add Song** opens a picker with the library songs that aren't in the playlist yet. New songs go to the end.
-  - Songs are numbered in playlist order. Reorder them by dragging a row, or with **Move up** / **Move down** in the row menu. The new order saves automatically; if saving fails, the list goes back to the last saved order.
+  - Click the name or description to edit them in a popup. Nothing is saved until you press **Save**.
+  - **Add Song** opens a searchable picker with the library songs that aren't in the playlist yet, including a "Select all" box. New songs go to the end, in the order they're listed.
+  - Songs are numbered in playlist order. Reorder them by dragging a row (on touch screens, press briefly first), or with **Move up** / **Move down** in the row's ⋮ menu. The new order saves automatically; if saving fails, the list goes back to the last saved order.
   - Reordering is paused while a search is active, so the numbers always match the full playlist.
-  - Search within the playlist, select songs, and **Remove Songs** (they stay in your library).
+  - Search within the playlist by title or link. Select songs and click **Remove Songs**, or use **Delete song** in a row's ⋮ menu. Both take the song out of this playlist straight away, with no confirmation; it stays in your library.
   - **Delete Playlist** with a confirmation.
+  - **Export Playlist** is shown but disabled until export is built.
   - A "Playlist not found" page for deleted playlists or wrong links.
-- **Account:** shows your name and email from your profile.
-- **Mobile layout:** the sidebar becomes a slide-out menu on small screens.
+- **Account:** shows your name and email from your profile. In development mode it also shows a data-separation check that should report exactly 1 visible profile.
+- **Sidebar:** can be collapsed to icons on desktop, and becomes a slide-out menu on small screens.
 
 ### Coming in Later Milestones
 
@@ -120,13 +122,23 @@ Playlists don't go through the backend. The browser reads and writes them direct
 
 - Creating, renaming, deleting playlists and removing songs are plain table writes.
 - Adding songs and reordering use two database functions, `add_songs_to_playlist` and `reorder_playlist_songs`. Each runs as one transaction, so positions stay numbered 1 to n with no gaps or duplicates.
-- On the playlist page, every change to the song list goes through one queue, so a slow request can never overtake a newer one.
+- Reordering is optimistic: the list changes on screen at once, then one request saves it. Several quick moves are merged into a single save of the newest order.
+- On the playlist page, every change to the song list (add, remove, reorder) goes through one queue, so a slow request can never overtake a newer one.
+- If a save fails because the playlist was changed somewhere else, the page reloads it and says so.
 
 ---
 
 ## 4. Technology Stack
 
 ### Frontend
+
+Styling uses Tailwind CSS, with no component library. Notes for contributors:
+
+- Put Tailwind classes in the template. Avoid adding `<style>` blocks unless a value can't be expressed with utilities, such as a keyframe animation.
+- Colours come from the `--c-*` variables defined on `.app-shell` in `src/assets/app.css`, exposed as Tailwind colours such as `bg-surface`, `text-muted` and `border-border`. Changing a variable updates every component that uses it. A new colour gets a new `--c-*` variable and a matching `@theme inline` entry.
+- The shared `app-*` classes (`app-btn`, `app-alert`, `app-card`, `app-page`, and so on) are kept as Tailwind component classes for buttons, alerts, cards and page titles.
+- Tailwind's base reset (Preflight) is not enabled yet, so element defaults such as list bullets and heading margins still come from `style.css` and the browser.
+- Class names are written out in full in the source, because Tailwind only generates classes it can find as complete strings.
 
 | Technology | Purpose |
 |---|---|
@@ -135,7 +147,7 @@ Playlists don't go through the backend. The browser reads and writes them direct
 | Vite 8 | Development server and build |
 | supabase-js v2 | Google sign-in, reading data and writing playlists under RLS |
 | vue-draggable-plus | Drag-and-drop reordering of playlist songs |
-| Plain CSS | Styling (no CSS framework) |
+| Tailwind CSS 4 (`@tailwindcss/vite`) | Styling: utility classes in the templates, with the app's colours as theme tokens |
 
 ### Backend
 
@@ -231,15 +243,16 @@ Playlists don't go through the backend. The browser reads and writes them direct
 │   │   ├── ExportMusicView.vue     Placeholder
 │   │   ├── AccountView.vue
 │   │   └── PocView.vue             Legacy, dev only, not working with the new backend
-│   └── assets/                     Global and app styles
+│   ├── assets/
+│   │   └── app.css                 Tailwind setup, colour tokens and shared app-* classes
+│   └── style.css                   Global base styles (font, landing page button)
 │
-├── .env.example                    Template for .env.local (frontend)
 ├── package.json
 ├── vite.config.js
 └── README.md
 ```
 
-Legacy files from the proof of concept (`src/api/`, `useLinks.js`, and the old playlist components) are still in the repo but aren't used by the app. They're scheduled for removal.
+Legacy files from the proof of concept are still in the repo but aren't used by the app: `src/api/`, `src/composables/useLinks.js`, `src/services/useImport.js` (an old copy of `composables/useImport.js`), the POC components directly under `src/components/` (`ImportButton.vue`, `PlaylistHistory.vue`, and so on), `src/components/icons/`, and `backend/test_connection.py`. They're scheduled for removal.
 
 ---
 
@@ -264,7 +277,7 @@ Constraints worth knowing:
 - A playlist description can be at most 500 characters.
 - A playlist's `updated_at` changes whenever its songs are added, removed or reordered.
 
-The app also calls two database functions (RPCs):
+The app also calls two database functions (RPCs). **They are not in `database/schema.sql` yet**, so a database built only from that file can't add songs to playlists or reorder them until they're created:
 
 | Function | Purpose |
 |---|---|
@@ -331,7 +344,7 @@ cd 128-
 
 ### 8.5 Configure the frontend
 
-Create a file named `.env.local` in the **repo root** (next to `package.json`). Copy the values from `.env.example`:
+Create a file named `.env.local` in the **repo root** (next to `package.json`) with these values:
 
 ```env
 VITE_SUPABASE_URL=https://YOUR-PROJECT-REF.supabase.co
@@ -427,7 +440,7 @@ Press `Ctrl + C` in either terminal to stop it.
    - Click a playlist's name to open it. Use **Add Song** to pick songs from your library.
    - Drag rows, or use **Move up** / **Move down** in the row menu, to change the order. It saves on its own.
    - Click the name or description at the top to edit it.
-   - Tick songs and click **Remove Songs** to take them out of the playlist, or **Delete Playlist** to delete the whole playlist. Your library isn't affected.
+   - Tick songs and click **Remove Songs** (or use **Delete song** in a row's ⋮ menu) to take them out of the playlist, or click **Delete Playlist** to delete the whole playlist. Your library isn't affected either way.
 6. **Export Music:** placeholder page for now.
 7. **Account:** shows your name and email.
 8. **Log Out:** at the bottom of the sidebar.
@@ -528,7 +541,9 @@ This checks that the app compiles. There are no automated frontend tests yet, so
 
 ## 13. Current Limitations
 
+- **Playlist database functions are missing from the schema file.** `add_songs_to_playlist` and `reorder_playlist_songs` must be added to `database/schema.sql` (see section 6).
 - **Export is not built yet.** The Export Music page is a placeholder, and the Export Playlist buttons are disabled.
+- **Removing songs from a playlist has no undo or confirmation.** The songs stay in the library, so they can be added back.
 - **No reordering during search:** drag and Move up/down are turned off while the playlist search box has text.
 - **Export isn't wired up.** `exporter.py` is kept for later, but no route calls it.
 - **Imports need the backend running on your machine.** There's no hosted backend yet.

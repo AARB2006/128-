@@ -9,18 +9,8 @@ defineProps({
   <section class="app-page">
     <h1 class="app-page-title">{{ title }}</h1>
     <div class="app-card">
-      <p class="app-muted">{{ description }}</p>
+      <p class="app-muted mt-0 mb-4 last:mb-0">{{ description }}</p>
       <slot />
     </div>
   </section>
 </template>
-
-<style scoped>
-p {
-  margin: 0 0 16px;
-}
-
-p:last-child {
-  margin-bottom: 0;
-}
-</style>

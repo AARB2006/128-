@@ -30,36 +30,49 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="fields">
-    <label class="label" :for="`${idPrefix}-name`">Name</label>
+  <div class="fields flex flex-col">
+    <label class="label mb-1.5 text-[14px] font-bold not-first:mt-4" :for="`${idPrefix}-name`">
+      Name
+    </label>
     <input
       :id="`${idPrefix}-name`"
       ref="nameInput"
       v-model="name"
-      class="name-input"
+      class="name-input font-inherit min-h-11 w-full rounded-[10px] border border-border bg-surface px-4 py-0 text-[16px] text-text disabled:cursor-not-allowed disabled:text-muted"
       type="text"
       autocomplete="off"
       placeholder="Playlist name"
       :maxlength="NAME_MAX + 50"
       :disabled="disabled"
     />
-    <p v-if="name.trim().length > NAME_MAX" class="over-note" role="alert">
+    <p
+      v-if="name.trim().length > NAME_MAX"
+      class="over-note mt-1.5 mb-0 text-[13px] text-danger"
+      role="alert"
+    >
       The name can be at most {{ NAME_MAX }} characters.
     </p>
 
-    <label class="label" :for="`${idPrefix}-description`">
-      Description <span class="optional">(optional)</span>
+    <label
+      class="label mb-1.5 text-[14px] font-bold not-first:mt-4"
+      :for="`${idPrefix}-description`"
+    >
+      Description <span class="optional font-normal text-muted">(optional)</span>
     </label>
-    <div class="box" :class="{ over: description.length > DESCRIPTION_MAX, disabled }">
+    <div
+      class="box relative rounded-card border border-border bg-surface focus-within:outline-3 focus-within:outline-offset-2 focus-within:outline-focus [&.over]:border-danger"
+      :class="{ over: description.length > DESCRIPTION_MAX, disabled }"
+    >
       <textarea
         :id="`${idPrefix}-description`"
         ref="descriptionInput"
         v-model="description"
+        class="font-inherit block min-h-[140px] w-full resize-y rounded-card border-0 bg-transparent px-4 pt-3.5 pb-10 text-[16px] leading-[1.5] text-text outline-0 placeholder:text-muted disabled:cursor-not-allowed disabled:text-muted"
         placeholder="What is this playlist for?"
         :disabled="disabled"
       ></textarea>
       <span
-        class="counter"
+        class="counter absolute right-4 bottom-2.5 text-[14px] text-muted tabular-nums [&.over]:font-bold [&.over]:text-danger"
         :class="{ over: description.length > DESCRIPTION_MAX }"
         aria-live="polite"
       >
@@ -68,103 +81,3 @@ onMounted(async () => {
     </div>
   </div>
 </template>
-
-<style scoped>
-.fields {
-  display: flex;
-  flex-direction: column;
-}
-
-.label {
-  margin: 0 0 6px;
-  font-size: 14px;
-  font-weight: bold;
-}
-
-.label:not(:first-child) {
-  margin-top: 16px;
-}
-
-.optional {
-  font-weight: normal;
-  color: var(--c-muted);
-}
-
-.name-input {
-  width: 100%;
-  min-height: 44px;
-  padding: 0 16px;
-  border: 1px solid var(--c-border);
-  border-radius: 10px;
-  background: var(--c-surface);
-  color: var(--c-text);
-  font: inherit;
-  font-size: 16px;
-}
-
-.name-input:disabled {
-  color: var(--c-muted);
-  cursor: not-allowed;
-}
-
-.over-note {
-  margin: 6px 0 0;
-  font-size: 13px;
-  color: var(--c-danger);
-}
-
-.box {
-  position: relative;
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius);
-  background: var(--c-surface);
-}
-
-.box:focus-within {
-  outline: 3px solid #98a2b3;
-  outline-offset: 2px;
-}
-
-.box.over {
-  border-color: var(--c-danger);
-}
-
-textarea {
-  display: block;
-  width: 100%;
-  min-height: 140px;
-  padding: 14px 16px 40px;
-  border: 0;
-  border-radius: var(--radius);
-  outline: 0;
-  resize: vertical;
-  background: transparent;
-  color: var(--c-text);
-  font: inherit;
-  font-size: 16px;
-  line-height: 1.5;
-}
-
-textarea::placeholder {
-  color: var(--c-muted);
-}
-
-textarea:disabled {
-  color: var(--c-muted);
-  cursor: not-allowed;
-}
-
-.counter {
-  position: absolute;
-  right: 16px;
-  bottom: 10px;
-  font-size: 14px;
-  font-variant-numeric: tabular-nums;
-  color: var(--c-muted);
-}
-
-.counter.over {
-  color: var(--c-danger);
-  font-weight: bold;
-}
-</style>

@@ -39,32 +39,42 @@ watch(
       <button class="app-btn" type="button" @click="emit('retry')">Try again</button>
     </div>
 
-    <div v-else-if="!playlists.length" class="empty">
-      <p class="app-muted">You don't have any playlists yet.</p>
+    <div v-else-if="!playlists.length" class="empty flex flex-col items-start gap-3">
+      <p class="app-muted m-0">You don't have any playlists yet.</p>
       <RouterLink :to="{ name: 'playlist-new' }" class="app-btn app-btn-primary">
         Add Playlist
       </RouterLink>
     </div>
 
-    <fieldset v-else class="choices" :disabled="busy">
+    <fieldset
+      v-else
+      class="choices m-0 max-h-[min(48vh,340px)] overflow-y-auto rounded-[10px] border border-border p-0"
+      :disabled="busy"
+    >
       <legend class="visually-hidden">Choose a playlist</legend>
       <label
         v-for="playlist in playlists"
         :key="playlist.playlist_id"
-        class="choice"
+        class="choice flex cursor-pointer items-center gap-3 border-t border-border p-3 first-of-type:border-t-0 [&.selected]:bg-selected"
         :class="{ selected: chosenId === playlist.playlist_id }"
       >
-        <input v-model="chosenId" type="radio" name="playlist" :value="playlist.playlist_id" />
-        <span class="name">{{ playlist.name }}</span>
-        <span class="songs">
+        <input
+          v-model="chosenId"
+          class="size-[18px] shrink-0 cursor-pointer"
+          type="radio"
+          name="playlist"
+          :value="playlist.playlist_id"
+        />
+        <span class="name min-w-0 flex-1 font-bold wrap-anywhere">{{ playlist.name }}</span>
+        <span class="songs text-[13px] whitespace-nowrap text-muted">
           {{ playlist.song_count }} {{ playlist.song_count === 1 ? 'song' : 'songs' }}
         </span>
       </label>
     </fieldset>
 
-    <p v-if="error" class="app-alert message" role="alert">{{ error }}</p>
+    <p v-if="error" class="app-alert message mt-4 mb-0" role="alert">{{ error }}</p>
 
-    <div class="buttons">
+    <div class="buttons mt-5 flex justify-end gap-2">
       <button class="app-btn" type="button" :disabled="busy" @click="emit('cancel')">
         Cancel
       </button>
@@ -79,83 +89,3 @@ watch(
     </div>
   </AppDialog>
 </template>
-
-<style scoped>
-.empty {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 12px;
-}
-
-.empty p {
-  margin: 0;
-}
-
-.choices {
-  max-height: min(48vh, 340px);
-  margin: 0;
-  padding: 0;
-  overflow-y: auto;
-  border: 1px solid var(--c-border);
-  border-radius: 10px;
-}
-
-.choice {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  border-top: 1px solid var(--c-border);
-  cursor: pointer;
-}
-
-.choice:first-of-type {
-  border-top: 0;
-}
-
-.choice.selected {
-  background: var(--c-selected);
-}
-
-.name {
-  flex: 1;
-  min-width: 0;
-  font-weight: bold;
-  overflow-wrap: anywhere;
-}
-
-.songs {
-  font-size: 13px;
-  color: var(--c-muted);
-  white-space: nowrap;
-}
-
-input[type='radio'] {
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-  cursor: pointer;
-}
-
-.message {
-  margin: 16px 0 0;
-}
-
-.buttons {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 20px;
-}
-
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  border: 0;
-}
-</style>

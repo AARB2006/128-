@@ -349,3 +349,73 @@ create policy export_items_select on public.export_items
         select 1 from public.exports e
         where e.export_id = export_items.export_id
           and e.owner_id = (select auth.uid())));
+
+
+-- ---------------------------------------------------------------
+-- 8. Playlist functions (called by the browser with supabase.rpc)
+--    They run as the signed-in user, so row-level security still
+--    applies. Each one is a single transaction.
+-- ---------------------------------------------------------------
+
+-- Appends songs to the end of a playlist, skipping ones already in it.
+-- Returns how many were added.
+create or replace function public.add_songs_to_playlist(
+    p_playlist_id uuid,
+    p_song_ids    uuid[]
+) returns integer
+language plpgsql
+as $$
+declare added int;
+begin
+  perform 1 from public.playlists where playlist_id = p_playlist_id for update;
+  if not found then raise exception 'Playlist not found.'; end if;
+
+  insert into public.playlist_songs (playlist_id, song_id, position)
+  select p_playlist_id, t.song_id,
+         coalesce((select max(position) from public.playlist_songs
+                   where playlist_id = p_playlist_id), 0) + row_number() over (order by t.ord)
+    from (select song_id, min(ord) as ord
+            from unnest(p_song_ids) with ordinality as u(song_id, ord)
+           group by song_id) t
+   where not exists (select 1 from public.playlist_songs ps
+                     where ps.playlist_id = p_playlist_id and ps.song_id = t.song_id);
+
+  get diagnostics added = row_count;
+  return added;
+end
+$$;
+
+-- Takes every song in the playlist in its new order and renumbers them
+-- 1 to n. Fails if the list doesn't match what is stored (the playlist
+-- was changed elsewhere).
+create or replace function public.reorder_playlist_songs(
+    p_playlist_id uuid,
+    p_song_ids    uuid[]
+) returns void
+language plpgsql
+as $$
+declare current_count int;
+begin
+  select count(*) into current_count
+    from public.playlist_songs where playlist_id = p_playlist_id;
+
+  if cardinality(p_song_ids) <> current_count
+     or (select count(distinct x) from unnest(p_song_ids) as x) <> current_count
+     or exists (select 1 from unnest(p_song_ids) as x
+                where x not in (select song_id from public.playlist_songs
+                                where playlist_id = p_playlist_id))
+  then
+    raise exception 'This playlist has changed. Reload it and try again.';
+  end if;
+
+  update public.playlist_songs ps
+     set position = o.new_pos::int
+    from unnest(p_song_ids) with ordinality as o(song_id, new_pos)
+   where ps.playlist_id = p_playlist_id and ps.song_id = o.song_id;
+end
+$$;
+
+revoke all on function public.add_songs_to_playlist(uuid, uuid[])    from public, anon;
+revoke all on function public.reorder_playlist_songs(uuid, uuid[])   from public, anon;
+grant execute on function public.add_songs_to_playlist(uuid, uuid[])  to authenticated;
+grant execute on function public.reorder_playlist_songs(uuid, uuid[]) to authenticated;

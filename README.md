@@ -1,9 +1,9 @@
 # YT-MP3: Family Playlist Maker
 
-A web app for building a personal music library from YouTube links. Each family member signs in with Google, imports up to ten YouTube links at a time, manages their own songs, and arranges them into playlists. MP3 export is planned for the next milestone.
+A web app for building a personal music library from YouTube links. Each family member signs in with Google, imports up to ten YouTube links at a time, manages their own songs, arranges them into playlists, and exports a playlist as a ZIP of numbered MP3s.
 
-> **Status:** Milestone 3 (Playlists). Export is still a placeholder page.
-> **Version:** 0.3.0
+> **Status:** Milestone 4 (Export). Playlists can be exported as MP3 ZIP files, with an Export History page.
+> **Version:** 0.4.0
 
 ---
 
@@ -31,11 +31,11 @@ A web app for building a personal music library from YouTube links. Each family 
 
 YT-MP3 is split into three parts:
 
-- **Vue frontend:** the signed-in app (sidebar, Music Library, Import Music, Playlists, Account) and the landing page with Google sign-in.
+- **Vue frontend:** the signed-in app (sidebar, Music Library, Import Music, Playlists, Export History, Account) and the landing page with Google sign-in.
 - **Supabase:** Google sign-in, the Postgres database, and row-level security (RLS) that keeps each user's data separate.
-- **FastAPI backend:** checks links, reads video metadata with yt-dlp, and writes songs to the database. It's the only part that can write songs, because it holds the secret key.
+- **FastAPI backend:** checks links, reads video metadata with yt-dlp, writes songs to the database, and builds export ZIPs (yt-dlp + FFmpeg). It's the only part that can write songs and export records, because it holds the secret key.
 
-Songs are stored as **links plus metadata only** (title, duration, canonical URL). No audio is stored.
+Songs are stored as **links plus metadata only** (title, duration, canonical URL). Audio is only created temporarily during an export, and the ZIP is deleted shortly after.
 
 Each user has a private library. If two users import the same YouTube video, each gets their own copy of the song record.
 
@@ -67,7 +67,7 @@ Each user has a private library. If two users import the same YouTube video, eac
   - Lists your playlists, newest first, with the name, description, date created and number of songs.
   - Live search by playlist name or description.
   - Select one, several, or all playlists and delete them after a confirmation (which names the playlist when only one is selected). The songs stay in your library.
-  - Each row has a ⋮ menu with **Edit playlist**, which opens the playlist, and **Export playlist**, which is disabled until export is built.
+  - Each row has a ⋮ menu with **Edit playlist**, which opens the playlist, and **Export playlist**, which opens the export popup.
   - An empty state when you have no playlists.
 - **Add Playlist page:** give the playlist a name (required, up to 100 characters) and an optional description (up to 500 characters, with a live counter). After saving you go straight to the new playlist so you can add songs.
 - **Playlist page** (open a playlist from the list):
@@ -77,14 +77,23 @@ Each user has a private library. If two users import the same YouTube video, eac
   - Reordering is paused while a search is active, so the numbers always match the full playlist.
   - Search within the playlist by title or link. Select songs and click **Remove Songs**, or use **Delete song** in a row's ⋮ menu. Both take the song out of this playlist straight away, with no confirmation; it stays in your library.
   - **Delete Playlist** with a confirmation.
-  - **Export Playlist** is shown but disabled until export is built.
+  - **Export Playlist** opens the export popup (disabled for an empty playlist, or while another export is running).
   - A "Playlist not found" page for deleted playlists or wrong links.
 - **Account:** shows your name and email from your profile. In development mode it also shows a data-separation check that should report exactly 1 visible profile.
 - **Sidebar:** can be collapsed to icons on desktop, and becomes a slide-out menu on small screens.
 
-### Coming in Later Milestones
-
-- **Export Music:** download a playlist as numbered MP3s in a ZIP file. The page is a placeholder for now.
+- **Export Playlist:**
+  - Choose **Export Playlist** on a playlist page or in a playlist's ⋮ menu, check the details, and start. Format is a ZIP of MP3s, numbered in playlist order.
+  - A progress card in the bottom-right corner shows the percentage and stays visible while you move between pages. It can be collapsed and has **Cancel** and **Download** buttons. Reloading the page picks a running export back up.
+  - A song that can't be downloaded is skipped, with its reason recorded; the rest are still exported. A ZIP is only offered after it is fully written and checked.
+  - Limits (all configurable): up to `MAX_EXPORT_SONGS` songs per export (default 100), `DAILY_EXPORT_SONG_LIMIT` songs per rolling 24 hours (default 300), and one running export per user.
+  - Missing FFmpeg, too little free disk space and a full disk are reported with a clear message.
+  - Finished ZIPs stay downloadable for `EXPORT_FILE_TTL_MINUTES` (default 60), then are deleted. Temporary audio is always deleted.
+- **Export History:** lists recent exports that produced a file, with the playlist name, date and song count (for example "8 of 10" when some songs were skipped).
+  - Expand a row to see its songs and why any were skipped.
+  - ⋮ menu: **Download** (until the file expires), **Export again**, and **Delete**.
+  - **Delete History** removes every finished export. Deleting also removes the ZIP. A running export is never deleted.
+  - History stores references only, so names come from your playlists and songs as they are now.
 
 ---
 
@@ -95,7 +104,7 @@ Each user has a private library. If two users import the same YouTube video, eac
 +------------------+            +--------------------+         +------------------+
 | Sign in (Google) |----------->|                    |         | Auth             |
 | Music Library    |  token     |  check token ------+-------->| /auth/v1/user    |
-| Import Music     |----------->|  POST /imports     |         |                  |
+| Import / Export  |----------->|  POST /imports     |         |                  |
 |                  |  links     |   |                |         | Postgres + RLS   |
 | polls progress   |<-----------+---+ background job |-------->| songs, batches,  |
 | (reads rows) ----+------------+-------------------------------->| import_items     |
@@ -115,6 +124,16 @@ Each user has a private library. If two users import the same YouTube video, eac
 ### Why the progress comes from the database
 
 Each link's result is written to the database as soon as it's known. Because of that, a reload or a second device can show the same progress without any extra state in the backend.
+
+### Export flow
+
+1. You click **Export Playlist**. The browser sends your login token and the playlist ID to `POST /exports`.
+2. The backend checks that the playlist is yours, the song count, the daily limit, free disk space, FFmpeg, and that you have no other export running.
+3. It records an `exports` row and one `export_items` row per song, then replies `202 Accepted`.
+4. In the background (a small thread pool, `MAX_CONCURRENT_EXPORTS` at a time), each song is downloaded with yt-dlp and converted to MP3 with FFmpeg, then everything is packed into a ZIP. The row's percentage is updated as it goes.
+5. The browser reads the `exports` row every second to update the progress card.
+6. When it finishes, **Download** asks `POST /exports/{id}/download-link` for a one-time link that works for 60 seconds. The browser downloads it like any file.
+7. A background sweeper deletes ZIPs after `EXPORT_FILE_TTL_MINUTES`. If the server restarts mid-export, that export is marked failed.
 
 ### Playlist flow
 
@@ -159,8 +178,10 @@ Styling uses Tailwind CSS, with no component library. Notes for contributors:
 | Pydantic | Request validation |
 | httpx | Calls to Supabase Auth and the Supabase REST API |
 | python-dotenv | Loads `backend/.env` |
-| yt-dlp | Reads video metadata |
+| yt-dlp | Reads video metadata and downloads audio for exports |
+| FFmpeg | Converts audio to MP3 for exports |
 | Node.js | JavaScript runtime that yt-dlp uses for some YouTube lookups |
+| ThreadPoolExecutor | Runs export jobs in the background |
 
 ### Data and Auth
 
@@ -188,7 +209,7 @@ Styling uses Tailwind CSS, with no component library. Notes for contributors:
 │
 ├── backend/
 │   ├── app/
-│   │   ├── main.py                 FastAPI app and routes (/health, /imports)
+│   │   ├── main.py                 FastAPI app and routes (/health, /imports, /exports)
 │   │   ├── auth.py                 Verifies login tokens with Supabase
 │   │   ├── importer.py             Import logic: validation, quota, background work
 │   │   ├── supabase_store.py       The only code that writes with the secret key
@@ -198,8 +219,13 @@ Styling uses Tailwind CSS, with no component library. Notes for contributors:
 │   │   ├── youtube.py              Link validation (carried over from the POC)
 │   │   ├── metadata.py             yt-dlp metadata checks (carried over from the POC)
 │   │   ├── ytdlp_opts.py           yt-dlp options (carried over from the POC)
-│   │   ├── names.py                Safe file names (kept for export)
-│   │   ├── exporter.py             MP3/ZIP export (kept, not wired up yet)
+│   │   ├── names.py                Safe file names (used by export)
+│   │   ├── exporter.py             Original POC exporter (kept for reference, not used)
+│   │   ├── exports/                Playlist export
+│   │   │   ├── service.py          Runs an export job, limits, download links, delete
+│   │   │   ├── audio.py            Song -> MP3 (yt-dlp + FFmpeg)
+│   │   │   ├── packager.py         MP3s -> verified ZIP
+│   │   │   └── workspace.py        Temporary folders and expiry sweeper
 │   │   ├── database.py             Legacy MySQL code, not used
 │   │   └── models.py               Legacy MySQL models, not used
 │   ├── tests/                      pytest suite
@@ -220,18 +246,21 @@ Styling uses Tailwind CSS, with no component library. Notes for contributors:
 │   │   ├── usePlaylists.js         Loads and deletes playlists
 │   │   ├── usePlaylistDetail.js    One playlist: edit, add, remove, reorder
 │   │   ├── useAddToPlaylist.js     Library's "Add to Playlist" popup
+│   │   ├── useExportJob.js         Running export: start, progress, cancel, download
 │   │   └── useSongPicker.js        Playlist page's "Add Song" popup
 │   ├── services/
 │   │   ├── musicLibraryService.js  Song queries (Supabase)
 │   │   ├── playlistService.js      Playlist queries and writes (Supabase)
 │   │   ├── playlistRules.js        Name/description limits and checks
 │   │   ├── importService.js        Calls POST /imports and reads batches
+│   │   ├── exportService.js        Export calls, history, download, delete
 │   │   └── apiError.js             Error type for backend calls
 │   ├── components/
 │   │   ├── layout/                 Sidebar, app shell, placeholder page
 │   │   ├── library/                Toolbar, song table, delete dialog
 │   │   ├── import/                 Links box, progress bar, results
 │   │   ├── playlists/              Playlist table, song list, dialogs
+│   │   ├── export/                 Export popup, progress card, delete dialog
 │   │   └── ui/                     Shared dialog, page toolbar, row menu
 │   ├── views/
 │   │   ├── LandingView.vue         Sign-in page
@@ -240,7 +269,7 @@ Styling uses Tailwind CSS, with no component library. Notes for contributors:
 │   │   ├── PlaylistsView.vue       List of playlists
 │   │   ├── PlaylistNewView.vue     Add Playlist form
 │   │   ├── PlaylistDetailView.vue  One playlist and its songs
-│   │   ├── ExportMusicView.vue     Placeholder
+│   │   ├── ExportHistoryView.vue   Past exports, download, delete
 │   │   ├── AccountView.vue
 │   │   └── PocView.vue             Legacy, dev only, not working with the new backend
 │   ├── assets/
@@ -268,21 +297,20 @@ The schema is in `database/schema.sql`. It creates these tables. Every table has
 | `playlist_songs` | Which songs are in which playlist, and in what order. | Own playlists | Own playlists (update: position only) |
 | `import_batches` | One row per import: status and link count. | Own rows | Backend only |
 | `import_items` | One row per link in an import: its result and any error. | Own rows | Backend only |
+| `exports` | One row per export: playlist, status, percent, file expiry. | Own rows | Backend only |
+| `export_items` | One row per song in an export: its position, result and any skip reason. | Own rows | Backend only |
 
 Constraints worth knowing:
 
 - Each user can have a given video only once in `songs`.
 - Each import can have 1 to 10 links.
+- A user can have only one active export at a time (a partial unique index).
+- Export history stores references only (which playlist, which song at which position), so names are read from `playlists` and `songs`.
 - Playlist positions are unique per playlist. The check is deferred, so a reorder can swap positions inside one transaction.
 - A playlist description can be at most 500 characters.
 - A playlist's `updated_at` changes whenever its songs are added, removed or reordered.
 
-The app also calls two database functions (RPCs). **They are not in `database/schema.sql` yet**, so a database built only from that file can't add songs to playlists or reorder them until they're created:
-
-| Function | Purpose |
-|---|---|
-| `add_songs_to_playlist(p_playlist_id, p_song_ids)` | Appends songs to the end of a playlist, skips ones already in it, and returns how many were added. |
-| `reorder_playlist_songs(p_playlist_id, p_song_ids)` | Takes every song in the playlist in its new order and renumbers them 1 to n in one transaction. |
+**Upgrading from Milestone 3:** run section 7 of `database/schema.sql` (the `exports` and `export_items` tables) in the Supabase SQL Editor.
 
 **Upgrading from Milestone 2:** if your database was created from the older schema, add the new column and permission before using playlists:
 
@@ -292,7 +320,9 @@ alter table public.playlists
 grant update (name, description) on public.playlists to authenticated;
 ```
 
-Only the backend holds the secret key, and only it can write songs and import rows. The browser never gets write access to those tables.
+The schema also defines two playlist functions the browser calls through `supabase.rpc`: `add_songs_to_playlist(p_playlist_id, p_song_ids)` appends songs to the end of a playlist, skips ones already in it, and returns how many were added; `reorder_playlist_songs(p_playlist_id, p_song_ids)` renumbers every song 1 to n in one transaction.
+
+Only the backend holds the secret key, and only it can write songs, import rows and export rows. The browser never gets write access to those tables.
 
 ---
 
@@ -307,7 +337,7 @@ Only the backend holds the secret key, and only it can write songs and import ro
 | Git | To clone the repository |
 | Supabase account | Free tier is enough |
 | Google Cloud project | Needed to create the Google OAuth client for sign-in |
-| FFmpeg | Not needed for import. Needed for export when it's built. |
+| FFmpeg | Needed for export. Must be on your PATH (check with `where ffmpeg`, then restart your terminal). Not needed for import. |
 
 ---
 
@@ -387,6 +417,14 @@ DAILY_IMPORT_LIMIT=100
 JS_RUNTIME=node
 
 ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+
+# Export (optional; these are the defaults)
+MAX_EXPORT_SONGS=100
+DAILY_EXPORT_SONG_LIMIT=300
+MAX_CONCURRENT_EXPORTS=2
+EXPORT_FILE_TTL_MINUTES=60
+EXPORT_MIN_FREE_MB=1024
+# EXPORT_DIR=   (folder for temporary audio and ZIPs; defaults to the system temp folder)
 ```
 
 Important:
@@ -412,7 +450,7 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000
 
 Check it's running by opening <http://127.0.0.1:8000/health>. It should show `{"status":"ok"}`.
 
-Avoid `--reload` while testing imports. Restarting the server during an import marks that import as failed, by design.
+Avoid `--reload` and multiple workers while testing. Restarting the server during an import or export marks it as failed, by design. On startup the backend warns "FFmpeg was not found" if exports can't run.
 
 ### Terminal 2: frontend
 
@@ -441,9 +479,10 @@ Press `Ctrl + C` in either terminal to stop it.
    - Drag rows, or use **Move up** / **Move down** in the row menu, to change the order. It saves on its own.
    - Click the name or description at the top to edit it.
    - Tick songs and click **Remove Songs** (or use **Delete song** in a row's ⋮ menu) to take them out of the playlist, or click **Delete Playlist** to delete the whole playlist. Your library isn't affected either way.
-6. **Export Music:** placeholder page for now.
-7. **Account:** shows your name and email.
-8. **Log Out:** at the bottom of the sidebar.
+6. **Export a playlist:** open a playlist (or use its ⋮ menu in the list), click **Export Playlist**, and confirm. Watch the progress card, then click **Download** when it's ready.
+7. **Export History:** download a recent export again, export the playlist again, or delete exports (one at a time or with **Delete History**).
+8. **Account:** shows your name and email.
+9. **Log Out:** at the bottom of the sidebar.
 
 On a phone, use the menu button at the top to open the sidebar.
 
@@ -451,12 +490,18 @@ On a phone, use the menu button at the top to open the sidebar.
 
 ## 11. Backend API
 
-The backend exposes two endpoints. Playlists don't use the backend; the browser talks to Supabase directly (see [Playlist flow](#playlist-flow)).
+Playlists don't use the backend; the browser talks to Supabase directly (see [Playlist flow](#playlist-flow)).
 
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
 | GET | `/health` | None | Checks the server is running |
 | POST | `/imports` | Bearer token | Starts an import and returns its batch ID |
+| POST | `/exports` | Bearer token | Starts a playlist export (`{playlist_id, format: "zip"}`) and returns its export ID |
+| POST | `/exports/{id}/cancel` | Bearer token | Cancels a running export |
+| POST | `/exports/{id}/download-link` | Bearer token | Returns a link that works for 60 seconds (410 if the file expired) |
+| GET | `/exports/download/{token}` | Link token | Downloads the ZIP |
+| DELETE | `/exports/{id}` | Bearer token | Deletes one finished export and its ZIP (404 if missing, 409 if still running) |
+| DELETE | `/exports` | Bearer token | Deletes all finished exports; returns `{"deleted": n}` |
 
 ### `POST /imports`
 
@@ -501,6 +546,8 @@ Possible errors. All use the same shape: `{"detail": {"message": "...", "problem
 
 The interactive API docs are at <http://127.0.0.1:8000/docs>.
 
+Export progress is read from the `exports` row in Supabase, like imports. Export errors use the same error shape.
+
 The POC endpoints (`GET /playlists`, `POST /playlists`, `POST /playlists/{id}/export`) were removed in this version.
 
 ---
@@ -521,6 +568,7 @@ The suite covers:
 - Partial failure: one bad video doesn't cancel the others, and the batch is marked `partial`.
 - Supabase calls: the secret key is sent only in the `apikey` header, and the batch is closed even if Supabase fails midway.
 - Authentication: missing, rejected and unreachable token checks.
+- Export rules: limits, ownership, skipped songs, ZIP verification, cleanup of temporary files, download links, cancel, and deleting history.
 - The URL validator from the POC.
 
 These tests use fake Supabase and yt-dlp stand-ins, so they run without internet access.
@@ -541,15 +589,14 @@ This checks that the app compiles. There are no automated frontend tests yet, so
 
 ## 13. Current Limitations
 
-- **Playlist database functions are missing from the schema file.** `add_songs_to_playlist` and `reorder_playlist_songs` must be added to `database/schema.sql` (see section 6).
-- **Export is not built yet.** The Export Music page is a placeholder, and the Export Playlist buttons are disabled.
+- **Export needs FFmpeg and the backend on your machine.** ZIPs are kept in a temporary folder and deleted after an hour.
+- **Deleting export history resets the daily export count,** because that count comes from the same rows.
 - **Removing songs from a playlist has no undo or confirmation.** The songs stay in the library, so they can be added back.
 - **No reordering during search:** drag and Move up/down are turned off while the playlist search box has text.
-- **Export isn't wired up.** `exporter.py` is kept for later, but no route calls it.
 - **Imports need the backend running on your machine.** There's no hosted backend yet.
-- **Only one backend process is supported.** The background import and the restart cleanup both assume a single process.
+- **Only one backend process is supported.** Background imports and exports, download links and the restart cleanup all assume a single process.
 - **Library size:** Supabase returns at most 1,000 rows per request by default. Pagination is needed before a library gets that big.
-- **Daily quota:** `DAILY_IMPORT_LIMIT` is a placeholder value. Set it to what you want.
+- **Daily quotas:** `DAILY_IMPORT_LIMIT` and `DAILY_EXPORT_SONG_LIMIT` are placeholder values. Set them to what you want.
 - **Google consent screen:** check its publishing status in Google Cloud before sharing the app with family.
 - **Legacy files:** the POC files listed in section 5 are still in the repo and aren't used.
 - **Not deployed:** no production hosting or production URL yet.
@@ -559,7 +606,7 @@ This checks that the app compiles. There are no automated frontend tests yet, so
 ## 14. Roadmap
 
 1. ~~**Playlists:** create playlists, add songs, reorder, rename and delete.~~ Done in Milestone 3.
-2. **Export:** a backend endpoint that downloads the audio with yt-dlp, converts it with FFmpeg, and returns a ZIP of numbered MP3s in playlist order. Enables the Export Playlist buttons.
+2. ~~**Export:** download a playlist as a ZIP of numbered MP3s, with an Export History page.~~ Done in Milestone 4.
 3. **Cleanup:** delete the legacy POC files and the `/poc` route.
 4. **Live progress:** replace polling with Supabase Realtime.
 5. **Faster token checks:** verify login tokens locally with the project's public keys, instead of calling Supabase on each request.

@@ -1,3 +1,6 @@
+<!--
+Text box where links to import are typed or pasted.
+-->
 <script setup>
 const text = defineModel({ type: String, default: '' })
 

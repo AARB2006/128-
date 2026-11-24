@@ -1,3 +1,7 @@
+/*
+Shared sign-in state (session, login, logout).
+*/
+
 import { computed, ref } from 'vue'
 import { supabase } from '@/lib/supabase.js'
 

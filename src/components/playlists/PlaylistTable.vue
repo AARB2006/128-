@@ -1,3 +1,6 @@
+<!--
+Table of the user's playlists with selection.
+-->
 <script setup>
 import { ref, watchEffect } from 'vue'
 import PlaylistRow from './PlaylistRow.vue'

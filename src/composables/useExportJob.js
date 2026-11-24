@@ -1,3 +1,8 @@
+/*
+Shared state for the running playlist export:
+start, poll, cancel, download.
+*/
+
 import { computed, ref } from 'vue'
 import {
   cancelExport,

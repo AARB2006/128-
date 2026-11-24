@@ -1,3 +1,7 @@
+"""
+Original proof-of-concept playlist-to-ZIP exporter
+(kept for reference; the real one is in app/exports/).
+"""
 
 import logging
 import zipfile

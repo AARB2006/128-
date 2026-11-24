@@ -1,3 +1,7 @@
+/*
+State and polling for importing YouTube links.
+*/
+
 import { computed, onScopeDispose, ref } from 'vue'
 import { getActiveBatch, getBatch, startImport } from '@/services/importService.js'
 

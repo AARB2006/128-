@@ -1,3 +1,6 @@
+<!--
+Proof-of-concept import status message.
+-->
 
 <script setup>
 import { useLinks } from '../composables/useLinks.js'

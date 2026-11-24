@@ -1,3 +1,6 @@
+<!--
+One row of the playlists table, with its actions menu.
+-->
 <script setup>
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'

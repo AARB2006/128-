@@ -1,3 +1,6 @@
+<!--
+Table of library songs with selection.
+-->
 <script setup>
 import { ref, watchEffect } from 'vue'
 import AppDialog from '@/components/ui/AppDialog.vue'

@@ -1,3 +1,7 @@
+"""
+Shared test helpers: a fake in-memory store and sample ids.
+"""
+
 import pytest
 
 

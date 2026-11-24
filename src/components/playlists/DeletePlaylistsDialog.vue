@@ -1,3 +1,6 @@
+<!--
+Confirmation popup for deleting playlists.
+-->
 <script setup>
 import AppDialog from '@/components/ui/AppDialog.vue'
 

@@ -1,3 +1,6 @@
+"""
+Legacy SQLAlchemy table models from the proof of concept.
+"""
 
 from sqlalchemy import (
     Column,

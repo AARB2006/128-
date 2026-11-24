@@ -1,3 +1,7 @@
+<!--
+Floating card showing the running export's progress,
+with cancel and download.
+-->
 <script setup>
 import { computed, ref, watch } from 'vue'
 import ProgressBar from '@/components/ui/ProgressBar.vue'

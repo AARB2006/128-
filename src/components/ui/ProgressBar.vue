@@ -1,3 +1,6 @@
+<!--
+Reusable progress bar with moving stripes while working.
+-->
 <script setup>
 import { computed } from 'vue'
 

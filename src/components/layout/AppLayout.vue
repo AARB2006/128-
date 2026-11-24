@@ -1,3 +1,7 @@
+<!--
+Page frame for signed-in pages: sidebar, content area
+and the export progress card.
+-->
 <script setup>
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'

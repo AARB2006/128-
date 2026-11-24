@@ -1,3 +1,8 @@
+/*
+Supabase database setup: tables, indexes and row-level security
+for profiles, songs, playlists, imports and exports.
+*/
+
 -- ---------------------------------------------------------------
 -- 1. Tables
 -- ---------------------------------------------------------------

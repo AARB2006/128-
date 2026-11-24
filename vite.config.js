@@ -1,3 +1,7 @@
+/*
+Vite build and dev-server settings (Vue, Tailwind, path alias).
+*/
+
 import { fileURLToPath, URL } from 'node:url'
 
 import { defineConfig } from 'vite'

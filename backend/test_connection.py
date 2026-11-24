@@ -1,3 +1,6 @@
+"""
+Manual script: checks that the database connection works.
+"""
 
 from sqlalchemy import text
 from app.database import engine

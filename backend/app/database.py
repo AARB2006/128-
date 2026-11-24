@@ -1,3 +1,7 @@
+"""
+Legacy SQLAlchemy database engine and session setup
+(Supabase is now reached through supabase_store.py).
+"""
 
 import os
 

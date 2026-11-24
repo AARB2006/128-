@@ -1,3 +1,7 @@
+/*
+Proof-of-concept state for the link list and playlists.
+*/
+
 
 import { computed, ref } from 'vue'
 import * as api from '../api/index.js'

@@ -1,3 +1,7 @@
+/*
+Global base styles (fonts, resets, page defaults).
+*/
+
 :root {
   font-family: Arial, Helvetica, sans-serif;
   color: #111;

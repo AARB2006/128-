@@ -1,3 +1,6 @@
+<!--
+Confirmation popup for deleting one export or the whole history.
+-->
 <script setup>
 import AppDialog from '@/components/ui/AppDialog.vue'
 

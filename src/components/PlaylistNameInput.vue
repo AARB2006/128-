@@ -1,3 +1,6 @@
+<!--
+Proof-of-concept playlist name input.
+-->
 <script setup>
 import { useLinks } from '../composables/useLinks.js'
 

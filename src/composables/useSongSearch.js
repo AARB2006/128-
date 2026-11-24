@@ -1,3 +1,7 @@
+/*
+Debounced search over a list that is already in memory.
+*/
+
 import { computed, onScopeDispose, ref, watch } from 'vue'
 
 const DEBOUNCE_MS = 250

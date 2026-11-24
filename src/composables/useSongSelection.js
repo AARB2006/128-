@@ -1,3 +1,7 @@
+/*
+Tracks which rows are ticked in a list.
+*/
+
 import { computed, ref, watch } from 'vue'
 
 // Tracks which songs are ticked. Only songs currently shown can stay selected,

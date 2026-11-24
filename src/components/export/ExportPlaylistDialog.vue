@@ -1,3 +1,6 @@
+<!--
+Popup that confirms the export options and starts a playlist export.
+-->
 <script setup>
 import { computed, ref, watch } from 'vue'
 import AppDialog from '@/components/ui/AppDialog.vue'

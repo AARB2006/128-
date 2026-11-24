@@ -1,3 +1,7 @@
+<!--
+Root component: shows the current page and leaves
+protected pages when the session ends.
+-->
 <script setup>
 import { watch } from 'vue'
 import { useRouter } from 'vue-router'

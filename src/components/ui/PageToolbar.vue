@@ -1,3 +1,6 @@
+<!--
+Search bar with button slots, shared by list pages.
+-->
 <script setup>
 // The search bar with a row of buttons under it, laid out like the Music
 // Library's. Buttons go in the `left` and `right` slots.

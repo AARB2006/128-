@@ -1,3 +1,7 @@
+"""
+Tests for the import logic (link checks, results, limits).
+"""
+
 import pytest
 
 from app import importer

@@ -1,3 +1,6 @@
+<!--
+A playlist's songs, with drag-and-drop reordering.
+-->
 <script setup>
 import { computed, ref, watch, watchEffect } from 'vue'
 import { useDraggable } from 'vue-draggable-plus'

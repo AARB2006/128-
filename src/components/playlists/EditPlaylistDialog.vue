@@ -1,3 +1,6 @@
+<!--
+Popup to edit a playlist's name and description.
+-->
 <script setup>
 import { ref, watch } from 'vue'
 import AppDialog from '@/components/ui/AppDialog.vue'

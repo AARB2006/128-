@@ -1,3 +1,7 @@
+/*
+Proof-of-concept client for the old links API.
+*/
+
 
 import { ApiError } from './errors.js'
 

@@ -1,3 +1,6 @@
+"""
+Validates YouTube links and extracts the video id.
+"""
 
 import re
 import unicodedata

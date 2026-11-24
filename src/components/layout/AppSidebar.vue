@@ -1,3 +1,6 @@
+<!--
+Navigation sidebar (collapsible; a drawer on small screens).
+-->
 <script setup>
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'

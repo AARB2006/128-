@@ -1,3 +1,6 @@
+<!--
+Progress bar shown while links are being imported.
+-->
 <script setup>
 import { computed } from 'vue'
 

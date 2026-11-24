@@ -1,3 +1,7 @@
+/*
+Duplicate of composables/useImport.js: state and polling for importing links.
+*/
+
 import { computed, onScopeDispose, ref } from 'vue'
 import { getActiveBatch, getBatch, startImport } from '@/services/importService.js'
 

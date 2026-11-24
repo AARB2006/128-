@@ -1,3 +1,6 @@
+<!--
+Import Music page: paste YouTube links and watch progress.
+-->
 <script setup>
 import { onMounted } from 'vue'
 import { MAX_LINKS, useImport } from '@/composables/useImport.js'

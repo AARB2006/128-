@@ -1,3 +1,6 @@
+<!--
+Playlists page: list, delete and export playlists.
+-->
 <script setup>
 import { onMounted, ref, computed } from 'vue'
 import { usePlaylists } from '@/composables/usePlaylists.js'

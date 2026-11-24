@@ -1,3 +1,6 @@
+"""
+Manual script: fetches metadata for one sample YouTube link.
+"""
 
 from app.metadata import fetch_metadata, VideoRejected
 from app.youtube import InvalidLink

@@ -1,3 +1,6 @@
+<!--
+One playlist's page: edit, add or remove songs, reorder, export.
+-->
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'

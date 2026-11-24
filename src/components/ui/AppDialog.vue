@@ -1,3 +1,6 @@
+<!--
+Reusable modal popup built on the browser's dialog element.
+-->
 <script setup>
 import { ref, watch } from 'vue'
 

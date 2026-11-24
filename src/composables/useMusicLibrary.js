@@ -1,3 +1,7 @@
+/*
+State for the Music Library page: load and delete songs.
+*/
+
 import { ref } from 'vue'
 import { deleteSongs, getSongs } from '@/services/musicLibraryService.js'
 

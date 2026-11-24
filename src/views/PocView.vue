@@ -1,3 +1,6 @@
+<!--
+Original proof-of-concept page.
+-->
 <script setup>
 import { onMounted } from 'vue'
 import PlaylistNameInput from '@/components/PlaylistNameInput.vue'

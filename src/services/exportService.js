@@ -1,3 +1,8 @@
+/*
+Talks to the backend and Supabase for exports:
+start, cancel, history, download, delete.
+*/
+
 import { supabase } from '@/lib/supabase.js'
 import { ApiError } from './apiError.js'
 

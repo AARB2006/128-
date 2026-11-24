@@ -1,3 +1,7 @@
+/*
+State for the Music Library's Add to Playlist popup.
+*/
+
 import { ref } from 'vue'
 import { getPlaylists, addSongsToPlaylist } from '@/services/playlistService.js'
 

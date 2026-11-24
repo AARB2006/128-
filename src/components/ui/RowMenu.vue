@@ -1,3 +1,6 @@
+<!--
+The actions menu at the end of a table row.
+-->
 <script setup>
 import { nextTick, onBeforeUnmount, ref } from 'vue'
 

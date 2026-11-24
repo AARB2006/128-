@@ -1,3 +1,7 @@
+/*
+Supabase calls to create, read, update and delete playlists and their songs.
+*/
+
 import { supabase } from '@/lib/supabase.js'
 
 // Like the library service, nothing here takes an owner id for reading. The

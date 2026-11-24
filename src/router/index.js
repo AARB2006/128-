@@ -1,3 +1,7 @@
+/*
+App routes, plus a guard that sends signed-out users to the landing page.
+*/
+
 import { createRouter, createWebHistory } from 'vue-router'
 import { initAuth, useAuth } from '@/composables/useAuth.js'
 import LandingView from '@/views/LandingView.vue'

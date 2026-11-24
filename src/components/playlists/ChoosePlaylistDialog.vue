@@ -1,3 +1,6 @@
+<!--
+Popup to choose which playlist receives the selected songs.
+-->
 <script setup>
 import { ref, watch } from 'vue'
 import AppDialog from '@/components/ui/AppDialog.vue'

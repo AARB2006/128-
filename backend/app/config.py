@@ -1,3 +1,8 @@
+"""
+Backend settings read from backend/.env
+(limits, paths, timeouts), with defaults.
+"""
+
 import os
 import tempfile
 from pathlib import Path

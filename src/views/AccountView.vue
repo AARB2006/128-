@@ -1,3 +1,6 @@
+<!--
+Account page: shows the signed-in user's profile and logs out.
+-->
 <script setup>
 import { onMounted, ref } from 'vue'
 import { supabase } from '@/lib/supabase.js'

@@ -1,3 +1,6 @@
+<!--
+Proof-of-concept list of import errors.
+-->
 <script setup>
 import { useLinks } from '../composables/useLinks.js'
 

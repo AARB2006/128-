@@ -1,3 +1,6 @@
+"""
+Shared yt-dlp options used by metadata lookup and audio download.
+"""
 
 from .config import JS_RUNTIME
 

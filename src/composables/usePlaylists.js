@@ -1,3 +1,7 @@
+/*
+State for the Playlists page: load and delete playlists.
+*/
+
 import { ref } from 'vue'
 import { deletePlaylists, getPlaylists } from '@/services/playlistService.js'
 

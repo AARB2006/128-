@@ -1,3 +1,6 @@
+<!--
+Music Library page: browse, search, delete songs and add them to playlists.
+-->
 <script setup>
 import { onMounted, ref } from 'vue'
 import { useMusicLibrary } from '@/composables/useMusicLibrary.js'

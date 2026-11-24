@@ -1,3 +1,6 @@
+<!--
+One song row inside a playlist.
+-->
 <script setup>
 import { computed } from 'vue'
 import RowMenu from '@/components/ui/RowMenu.vue'

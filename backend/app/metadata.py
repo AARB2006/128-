@@ -1,3 +1,7 @@
+"""
+Looks up a YouTube video's title and length with yt-dlp
+and rejects videos that aren't allowed.
+"""
 
 import logging
 import math

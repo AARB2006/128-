@@ -1,3 +1,7 @@
+/*
+Talks to the backend and Supabase for importing links.
+*/
+
 import { supabase } from '@/lib/supabase.js'
 import { ApiError } from './apiError.js'
 

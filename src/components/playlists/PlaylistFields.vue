@@ -1,3 +1,6 @@
+<!--
+Name and description inputs shared by the add and edit forms.
+-->
 <script setup>
 import { nextTick, onMounted, ref } from 'vue'
 import { DESCRIPTION_MAX, NAME_MAX } from '@/services/playlistRules.js'

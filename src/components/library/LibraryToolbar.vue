@@ -1,3 +1,6 @@
+<!--
+Search bar and action buttons above the song list.
+-->
 <script setup>
 const query = defineModel('query', { type: String, default: '' })
 

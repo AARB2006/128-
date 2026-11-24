@@ -1,3 +1,7 @@
+/*
+State for one playlist: load, edit, add, remove and reorder songs.
+*/
+
 import { ref } from 'vue'
 import {
   addSongsToPlaylist,

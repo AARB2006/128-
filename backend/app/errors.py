@@ -1,3 +1,7 @@
+"""
+One shared error format for every API response.
+"""
+
 from fastapi import HTTPException
 
 

@@ -1,3 +1,7 @@
+/*
+Supabase calls to load and delete library songs.
+*/
+
 import { supabase } from '@/lib/supabase.js'
 
 // Neither function takes a user id. The signed-in session identifies the user,

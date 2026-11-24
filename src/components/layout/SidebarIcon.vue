@@ -1,3 +1,6 @@
+<!--
+Icons used by the sidebar links.
+-->
 <script setup>
 defineProps({
   name: { type: String, required: true },

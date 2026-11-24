@@ -1,3 +1,6 @@
+<!--
+Simple coming-soon page with a title.
+-->
 <script setup>
 defineProps({
   title: { type: String, required: true },

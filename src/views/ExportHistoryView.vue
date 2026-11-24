@@ -1,3 +1,6 @@
+<!--
+Export History page: past exports, download, export again, delete.
+-->
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {

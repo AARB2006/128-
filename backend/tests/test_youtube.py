@@ -1,3 +1,6 @@
+"""
+Tests for YouTube link parsing.
+"""
 
 import pytest
 

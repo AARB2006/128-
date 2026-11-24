@@ -1,3 +1,7 @@
+/*
+Loads library songs not yet in a playlist, for the Add Song popup.
+*/
+
 import { ref } from 'vue'
 import { getSongs } from '@/services/musicLibraryService.js'
 

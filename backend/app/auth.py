@@ -1,3 +1,8 @@
+"""
+Checks the Supabase login token on each request
+and returns the signed-in user's id.
+"""
+
 import logging
 
 import httpx

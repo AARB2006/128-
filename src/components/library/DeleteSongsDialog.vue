@@ -1,3 +1,6 @@
+<!--
+Confirmation popup for deleting songs from the library.
+-->
 <script setup>
 import { ref, watch } from 'vue'
 

@@ -1,3 +1,7 @@
+"""
+Tests for the Supabase store's HTTP requests (mocked).
+"""
+
 import json
 from datetime import datetime, timezone
 

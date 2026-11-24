@@ -1,3 +1,6 @@
+<!--
+Per-link results after an import finishes.
+-->
 <script setup>
 defineProps({
   summary: { type: Object, required: true },

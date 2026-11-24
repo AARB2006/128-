@@ -1,3 +1,6 @@
+<!--
+Popup to pick library songs to add to a playlist.
+-->
 <script setup>
 import { computed, ref, watch, watchEffect } from 'vue'
 import AppDialog from '@/components/ui/AppDialog.vue'

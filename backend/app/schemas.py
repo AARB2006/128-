@@ -1,3 +1,7 @@
+"""
+Request and response shapes (Pydantic) for the API.
+"""
+
 from typing import Literal
 from uuid import UUID
 

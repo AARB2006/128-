@@ -1,3 +1,6 @@
+<!--
+Landing page with Google sign-in.
+-->
 <script setup>
 import { ref } from 'vue'
 import { useAuth } from '@/composables/useAuth.js'

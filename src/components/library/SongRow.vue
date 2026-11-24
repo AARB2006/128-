@@ -1,3 +1,6 @@
+<!--
+One row of the library song table.
+-->
 <script setup>
 import { computed } from 'vue'
 

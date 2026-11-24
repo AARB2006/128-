@@ -1,3 +1,8 @@
+"""
+FastAPI app: defines the import and export endpoints,
+CORS, and startup/shutdown tasks.
+"""
+
 import logging
 from contextlib import asynccontextmanager
 from functools import lru_cache

@@ -1,3 +1,6 @@
+"""
+Turns song and playlist titles into safe file names.
+"""
 
 import re
 import unicodedata

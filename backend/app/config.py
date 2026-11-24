@@ -1,4 +1,5 @@
 import os
+import tempfile
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -25,6 +26,34 @@ MAX_VIDEO_SECONDS = int(os.getenv("MAX_VIDEO_SECONDS", "1800"))
 # Node.js is already installed for the Vue/Vite project.
 # yt-dlp can use it as its JavaScript runtime.
 JS_RUNTIME = os.getenv("JS_RUNTIME", "node")
+
+# ---- Export limits ----------------------------------------------------------
+
+# Songs in one export. Each song is downloaded and converted, so big exports
+# take a long time and a lot of disk space.
+MAX_EXPORT_SONGS = int(os.getenv("MAX_EXPORT_SONGS", "100"))
+
+# Songs one user may export in a rolling 24 hours (placeholder, like imports).
+DAILY_EXPORT_SONG_LIMIT = int(os.getenv("DAILY_EXPORT_SONG_LIMIT", "300"))
+
+# Exports running at the same time on this server. Others wait in a queue.
+MAX_CONCURRENT_EXPORTS = int(os.getenv("MAX_CONCURRENT_EXPORTS", "2"))
+
+# How long a finished ZIP stays downloadable before it is deleted.
+EXPORT_FILE_TTL_MINUTES = int(os.getenv("EXPORT_FILE_TTL_MINUTES", "60"))
+
+# Free disk space to keep in reserve, plus a rough size per song.
+EXPORT_MIN_FREE_MB = int(os.getenv("EXPORT_MIN_FREE_MB", "1024"))
+EXPORT_ESTIMATED_MB_PER_SONG = 15
+
+# Stop early when this many songs in a row fail because YouTube is blocking
+# or unreachable, instead of hammering it for every remaining song.
+EXPORT_MAX_CONSECUTIVE_FAILURES = 3
+
+# Where temporary audio and finished ZIPs live (deleted automatically).
+EXPORT_DIR = Path(
+    os.getenv("EXPORT_DIR", str(Path(tempfile.gettempdir()) / "ytmp3_exports"))
+)
 
 # ---- Supabase ---------------------------------------------------------------
 

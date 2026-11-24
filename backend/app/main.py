@@ -1,15 +1,24 @@
 import logging
 from contextlib import asynccontextmanager
 from functools import lru_cache
+from uuid import UUID
 
 from fastapi import BackgroundTasks, Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, Response
 
 from . import config
 from .auth import get_current_user_id
 from .errors import api_error
+from .exports import service as exports
 from .importer import ImportRejected, prepare_import, run_import
-from .schemas import ImportRequest, ImportStarted
+from .schemas import (
+    DownloadLink,
+    ExportRequest,
+    ExportStarted,
+    ImportRequest,
+    ImportStarted,
+)
 from .supabase_store import StoreError, SupabaseStore
 
 
@@ -38,6 +47,24 @@ async def lifespan(app: FastAPI):
     else:
         logger.warning("Supabase is not configured; imports are disabled.")
 
+    # Same for exports, then delete any files they left behind.
+    if config.supabase_is_configured():
+        try:
+            count = get_store().fail_interrupted_exports()
+            if count:
+                logger.info("Marked %s interrupted export(s) as failed", count)
+        except Exception:
+            logger.exception("Could not clean up interrupted exports")
+
+    try:
+        exports.sweep()
+    except Exception:
+        logger.exception("Could not clean up old export files")
+    exports.start_sweeper()
+
+    if not exports.ffmpeg_available():
+        logger.warning("FFmpeg was not found; exports are disabled.")
+
     yield
 
 
@@ -47,7 +74,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=config.ALLOWED_ORIGINS,
     allow_credentials=False,  # we use a bearer token, not cookies
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["Authorization", "Content-Type"],
     expose_headers=["Content-Disposition"],
 )
@@ -85,3 +112,107 @@ def start_import(
         background_tasks.add_task(run_import, store, batch_id, owner_id, entries)
 
     return ImportStarted(batch_id=batch_id, total_links=len(entries))
+
+
+# ---- exports ------------------------------------------------------------------
+
+def _export_error(error: exports.ExportRejected):
+    api_error(error.status_code, error.message)
+
+
+@app.post("/exports", response_model=ExportStarted, status_code=202)
+def start_export(
+    request: ExportRequest,
+    owner_id: str = Depends(get_current_user_id),
+    store: SupabaseStore = Depends(get_store),
+):
+    """
+    Check the playlist and queue its export. Returns straight away; the browser
+    then reads progress from its `exports` row in Supabase.
+    """
+    try:
+        job = exports.prepare_export(store, owner_id, str(request.playlist_id))
+    except exports.ExportRejected as error:
+        _export_error(error)
+    except StoreError:
+        api_error(503, "Could not reach the database. Please try again.")
+
+    exports.submit(store, job)
+    return ExportStarted(export_id=job.export_id, total_songs=len(job.tracks))
+
+
+@app.post("/exports/{export_id}/cancel", status_code=202)
+def cancel_export(
+    export_id: UUID,
+    owner_id: str = Depends(get_current_user_id),
+    store: SupabaseStore = Depends(get_store),
+):
+    try:
+        exports.request_cancel(store, owner_id, str(export_id))
+    except exports.ExportRejected as error:
+        _export_error(error)
+    except StoreError:
+        api_error(503, "Could not reach the database. Please try again.")
+
+    return {"status": "cancelling"}
+
+
+@app.post("/exports/{export_id}/download-link", response_model=DownloadLink)
+def export_download_link(
+    export_id: UUID,
+    owner_id: str = Depends(get_current_user_id),
+    store: SupabaseStore = Depends(get_store),
+):
+    try:
+        path = exports.create_download_link(store, owner_id, str(export_id))
+    except exports.ExportRejected as error:
+        _export_error(error)
+    except StoreError:
+        api_error(503, "Could not reach the database. Please try again.")
+
+    return DownloadLink(path=path)
+
+
+@app.get("/exports/download/{token}")
+def download_export(token: str):
+    """
+    A normal browser download, so there is no Authorization header here:
+    the short-lived token from /download-link is the permission.
+    """
+    try:
+        path, name = exports.redeem_download_link(token)
+    except exports.ExportRejected as error:
+        _export_error(error)
+
+    return FileResponse(path, filename=name, media_type="application/zip")
+
+
+@app.delete("/exports/{export_id}", status_code=204)
+def remove_export(
+    export_id: UUID,
+    owner_id: str = Depends(get_current_user_id),
+    store: SupabaseStore = Depends(get_store),
+):
+    """Remove one finished export from the history (and delete its ZIP)."""
+    try:
+        exports.delete_export(store, owner_id, str(export_id))
+    except exports.ExportRejected as error:
+        _export_error(error)
+    except StoreError:
+        api_error(503, "Could not reach the database. Please try again.")
+
+    return Response(status_code=204)
+
+
+@app.delete("/exports")
+def clear_export_history(
+    owner_id: str = Depends(get_current_user_id),
+    store: SupabaseStore = Depends(get_store),
+):
+    """Remove every finished export from the history. A running one is kept."""
+    try:
+        deleted = exports.clear_history(store, owner_id)
+    except StoreError:
+        api_error(503, "Could not reach the database. Please try again.")
+
+    return {"deleted": deleted}

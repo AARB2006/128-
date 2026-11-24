@@ -281,3 +281,66 @@ create policy import_items_select on public.import_items
         select 1 from public.import_batches b
         where b.batch_id = import_items.batch_id
           and b.owner_id = (select auth.uid())));
+
+-- ---------------------------------------------------------------
+-- Exports: one row per export job. Also the Export History list.
+-- Stores references only: names and titles are read from
+-- playlists and songs when the history is shown.
+-- Written only by the backend (secret key); users can read their own.
+-- ---------------------------------------------------------------
+create table public.exports (
+    export_id       uuid primary key default gen_random_uuid(),
+    owner_id        uuid not null references public.profiles (id) on delete cascade,
+    playlist_id     uuid references public.playlists (playlist_id) on delete set null,
+    format          text not null default 'zip' check (format in ('zip')),
+    total_songs     integer not null check (total_songs between 1 and 1000),
+    exported_songs  integer not null default 0 check (exported_songs >= 0),
+    percent         smallint not null default 0 check (percent between 0 and 100),
+    status          text not null default 'pending'
+                    check (status in ('pending', 'processing', 'packaging',
+                                      'completed', 'partial', 'failed', 'cancelled')),
+    error_message   text,
+    file_size_bytes bigint,
+    created_at      timestamptz not null default now(),
+    started_at      timestamptz,
+    completed_at    timestamptz,
+    file_expires_at timestamptz
+);
+create index exports_owner_created_idx on public.exports (owner_id, created_at desc);
+create index exports_playlist_idx on public.exports (playlist_id);
+
+-- At most one running export per user, enforced by the database.
+create unique index exports_one_active_per_owner
+    on public.exports (owner_id)
+    where status in ('pending', 'processing', 'packaging');
+
+-- Which song was at which position, and whether it made it into the ZIP.
+create table public.export_items (
+    export_id     uuid not null references public.exports (export_id) on delete cascade,
+    position      integer not null check (position >= 1),
+    song_id       uuid references public.songs (song_id) on delete set null,
+    status        text not null default 'pending'
+                  check (status in ('pending', 'success', 'failed', 'skipped')),
+    error_message text,
+    processed_at  timestamptz,
+    primary key (export_id, position)
+);
+create index export_items_song_idx on public.export_items (song_id);
+
+alter table public.exports      enable row level security;
+alter table public.export_items enable row level security;
+
+revoke all on public.exports, public.export_items from anon;
+revoke insert, update, delete on public.exports      from authenticated;
+revoke insert, update, delete on public.export_items from authenticated;
+
+create policy exports_select on public.exports
+    for select to authenticated
+    using (owner_id = (select auth.uid()));
+
+create policy export_items_select on public.export_items
+    for select to authenticated
+    using (exists (
+        select 1 from public.exports e
+        where e.export_id = export_items.export_id
+          and e.owner_id = (select auth.uid())));

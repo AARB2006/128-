@@ -10,6 +10,8 @@ import PlaylistSongList from '@/components/playlists/PlaylistSongList.vue'
 import EditPlaylistDialog from '@/components/playlists/EditPlaylistDialog.vue'
 import AddSongsDialog from '@/components/playlists/AddSongsDialog.vue'
 import DeletePlaylistsDialog from '@/components/playlists/DeletePlaylistsDialog.vue'
+import ExportPlaylistDialog from '@/components/export/ExportPlaylistDialog.vue'
+import { useExportJob } from '@/composables/useExportJob.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -118,6 +120,29 @@ const description = computed(() => playlist.value?.description || '')
 // Shared by the name and description buttons: plain text until hovered.
 const edit =
   'edit font-inherit -ml-1.5 block max-w-full cursor-pointer rounded-[8px] border-0 bg-transparent px-1.5 py-0.5 text-left wrap-anywhere hover:bg-hover'
+
+// ---- export ----------------------------------------------------------------------
+const exportJob = useExportJob()
+const exportOpen = ref(false)
+
+const exportingThis = computed(
+  () =>
+    exportJob.busy.value && exportJob.job.value?.playlist_id === playlist.value?.playlist_id,
+)
+const exportTitle = computed(() => {
+  if (!songs.value.length) return 'Add songs to export this playlist'
+  if (exportJob.busy.value && !exportingThis.value) return 'Another export is running'
+  return undefined
+})
+const exportTarget = computed(() =>
+  playlist.value
+    ? {
+        playlist_id: playlist.value.playlist_id,
+        name: playlist.value.name,
+        song_count: songs.value.length,
+      }
+    : null,
+)
 </script>
 
 <template>
@@ -200,10 +225,11 @@ const edit =
           <button
             class="app-btn"
             type="button"
-            disabled
-            title="Exporting is coming in a later update"
+            :disabled="!songs.length || exportJob.busy.value"
+            :title="exportTitle"
+            @click="exportOpen = true"
           >
-            Export Playlist
+            {{ exportingThis ? 'Exporting…' : 'Export Playlist' }}
           </button>
         </template>
       </PageToolbar>
@@ -260,6 +286,12 @@ const edit =
         @add="onAdd"
         @retry="picker.openPicker"
         @cancel="picker.close"
+      />
+
+      <ExportPlaylistDialog
+        :open="exportOpen"
+        :playlist="exportTarget"
+        @close="exportOpen = false"
       />
 
       <DeletePlaylistsDialog

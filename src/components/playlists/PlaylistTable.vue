@@ -8,7 +8,7 @@ const props = defineProps({
   allSelected: { type: Boolean, default: false },
   someSelected: { type: Boolean, default: false },
 })
-defineEmits(['toggle', 'toggle-all'])
+defineEmits(['toggle', 'toggle-all', 'export'])
 
 // The look of every header cell.
 const th = 'bg-bg px-4 py-3 text-left text-[13px] font-bold tracking-[0.04em] text-muted uppercase'
@@ -47,6 +47,7 @@ watchEffect(() => {
           :playlist="playlist"
           :selected="selectedIds.has(playlist.playlist_id)"
           @toggle="$emit('toggle', $event)"
+          @export="$emit('export', $event)"
         />
       </tbody>
     </table>

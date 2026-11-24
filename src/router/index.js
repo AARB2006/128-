@@ -7,7 +7,7 @@ import ImportMusicView from '@/views/ImportMusicView.vue'
 import PlaylistsView from '@/views/PlaylistsView.vue'
 import PlaylistNewView from '@/views/PlaylistNewView.vue'
 import PlaylistDetailView from '@/views/PlaylistDetailView.vue'
-import ExportMusicView from '@/views/ExportMusicView.vue'
+import ExportHistoryView from '@/views/ExportHistoryView.vue'
 import AccountView from '@/views/AccountView.vue'
 
 const routes = [
@@ -31,7 +31,9 @@ const routes = [
           { path: ':playlistId', name: 'playlist', component: PlaylistDetailView },
         ],
       },
-      { path: 'export', name: 'export', component: ExportMusicView },
+      { path: 'export-history', name: 'export-history', component: ExportHistoryView },
+      // The old Export Music address still works.
+      { path: 'export', redirect: { name: 'export-history' } },
       { path: 'account', name: 'account', component: AccountView },
     ],
   },

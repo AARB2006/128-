@@ -3,6 +3,8 @@ import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import AppSidebar from './AppSidebar.vue'
 import SidebarIcon from './SidebarIcon.vue'
+import ExportProgressToast from '@/components/export/ExportProgressToast.vue'
+import { useExportJob } from '@/composables/useExportJob.js'
 import '@/assets/app.css'
 
 const route = useRoute()
@@ -20,8 +22,18 @@ function onKeydown(event) {
   if (event.key === 'Escape') mobileOpen.value = false
 }
 
-onMounted(() => window.addEventListener('keydown', onKeydown))
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
+// Show the progress card again if an export is still running (after a
+// reload, or one started in another tab). Signing out forgets it.
+const { job, resume, reset } = useExportJob()
+
+onMounted(() => {
+  window.addEventListener('keydown', onKeydown)
+  resume()
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown)
+  reset()
+})
 </script>
 
 <template>
@@ -49,8 +61,17 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
       @click="mobileOpen = false"
     />
 
-    <main class="app-main">
+    <!-- Extra room at the bottom so the export card never hides the last row. -->
+    <main class="app-main" :class="{ 'has-export-card': job }">
       <RouterView />
     </main>
+
+    <ExportProgressToast />
   </div>
 </template>
+
+<style scoped>
+.has-export-card {
+  padding-bottom: 160px;
+}
+</style>

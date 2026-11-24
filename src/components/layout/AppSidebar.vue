@@ -36,7 +36,7 @@ const items = [
   { name: 'library', label: 'Music Library', icon: 'music' },
   { name: 'import', label: 'Import Music', icon: 'import' },
   { name: 'playlists', label: 'Playlists', icon: 'list' },
-  { name: 'export', label: 'Export Music', icon: 'export' },
+  { name: 'export-history', label: 'Export History', icon: 'export' },
   { name: 'account', label: 'Account', icon: 'user' },
 ]
 

@@ -2,12 +2,13 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import RowMenu from '@/components/ui/RowMenu.vue'
+import { useExportJob } from '@/composables/useExportJob.js'
 
 const props = defineProps({
   playlist: { type: Object, required: true },
   selected: { type: Boolean, default: false },
 })
-defineEmits(['toggle'])
+const emit = defineEmits(['toggle', 'export'])
 
 const router = useRouter()
 
@@ -22,21 +23,30 @@ const created = computed(() =>
   }),
 )
 
-// Export arrives in a later update, so it is shown but switched off.
-const menuItems = [
-  { key: 'edit', label: 'Edit playlist' },
-  {
-    key: 'export',
-    label: 'Export playlist',
-    disabled: true,
-    title: 'Exporting is coming in a later update',
-  },
-]
+const { busy: exportBusy } = useExportJob()
+
+const menuItems = computed(() => {
+  const empty = props.playlist.song_count === 0
+  return [
+    { key: 'edit', label: 'Edit playlist' },
+    {
+      key: 'export',
+      label: 'Export playlist',
+      disabled: empty || exportBusy.value,
+      title: empty
+        ? 'Add songs to export this playlist'
+        : exportBusy.value
+          ? 'Another export is running'
+          : undefined,
+    },
+  ]
+})
 
 function onMenu(key) {
   if (key === 'edit') {
     router.push({ name: 'playlist', params: { playlistId: props.playlist.playlist_id } })
   }
+  if (key === 'export') emit('export', props.playlist)
 }
 </script>
 

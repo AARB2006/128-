@@ -6,6 +6,7 @@ import { useSongSelection } from '@/composables/useSongSelection.js'
 import PageToolbar from '@/components/ui/PageToolbar.vue'
 import PlaylistTable from '@/components/playlists/PlaylistTable.vue'
 import DeletePlaylistsDialog from '@/components/playlists/DeletePlaylistsDialog.vue'
+import ExportPlaylistDialog from '@/components/export/ExportPlaylistDialog.vue'
 
 const { playlists, loading, error, actionError, deleting, load, remove } = usePlaylists()
 const { query, results } = useSongSearch(playlists, ['name', 'description'])
@@ -20,6 +21,7 @@ const {
 } = useSongSelection(results, 'playlist_id')
 
 const confirmOpen = ref(false)
+const exportTarget = ref(null) // the playlist chosen from a row's ⋮ menu
 
 // With exactly one playlist ticked, the confirmation names it.
 const singleName = computed(() =>
@@ -93,6 +95,13 @@ async function onConfirmDelete() {
       :some-selected="someSelected"
       @toggle="toggle"
       @toggle-all="toggleAll"
+      @export="exportTarget = $event"
+    />
+
+    <ExportPlaylistDialog
+      :open="Boolean(exportTarget)"
+      :playlist="exportTarget"
+      @close="exportTarget = null"
     />
 
     <DeletePlaylistsDialog

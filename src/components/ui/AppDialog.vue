@@ -37,7 +37,7 @@ function requestClose() {
 <template>
   <dialog
     ref="dialog"
-    class="dialog max-h-[90vh] w-[min(92vw,460px)] rounded-card border border-border bg-surface p-0 text-text backdrop:bg-[rgba(17,24,39,0.45)] [&.wide]:w-[min(94vw,560px)]"
+    class="dialog max-h-[90vh] w-[min(92vw,460px)] rounded-card border border-border bg-surface p-0 text-text backdrop:bg-[rgba(0,0,0,0.65)] [&.wide]:w-[min(94vw,560px)]"
     :class="{ wide }"
     :aria-labelledby="titleId"
     @cancel.prevent="requestClose"

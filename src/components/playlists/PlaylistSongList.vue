@@ -32,7 +32,7 @@ watch(
 const body = ref(null)
 
 // The look of every header cell (each adds its own left padding).
-const th = 'bg-bg py-3 pr-4 text-left text-[13px] font-bold tracking-[0.04em] text-muted uppercase'
+const th = 'bg-head py-3 pr-4 text-left text-[12px] font-semibold tracking-[0.06em] text-muted uppercase'
 
 const reduceMotion =
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -66,11 +66,11 @@ const lastIndex = computed(() => rows.value.length - 1)
 </script>
 
 <template>
-  <div class="table-wrap overflow-hidden rounded-card border border-border bg-surface">
-    <table class="w-full border-collapse">
+  <div class="table-wrap">
+    <table class="w-full min-w-[520px] table-fixed border-collapse">
       <thead>
         <tr>
-          <th :class="[th, 'check w-12 pl-4']">
+          <th :class="[th, 'check w-11 pl-4 pr-0']">
             <input
               ref="selectAll"
               class="size-[18px] cursor-pointer"
@@ -80,8 +80,9 @@ const lastIndex = computed(() => rows.value.length - 1)
               @change="$emit('toggle-all')"
             />
           </th>
-          <th :class="[th, 'number w-12 pl-0']">#</th>
+          <th :class="[th, 'number w-16 pl-4']">#</th>
           <th :class="[th, 'pl-4']">Song</th>
+          <th :class="[th, 'length w-[90px] pl-4 phone:hidden']">Length</th>
           <th :class="[th, 'menu w-14 pl-4']"><span class="visually-hidden">Actions</span></th>
         </tr>
       </thead>

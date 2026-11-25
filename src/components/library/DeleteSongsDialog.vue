@@ -32,7 +32,7 @@ function requestCancel() {
 <template>
   <dialog
     ref="dialog"
-    class="dialog w-[min(92vw,440px)] rounded-card border border-border bg-surface p-0 text-text backdrop:bg-[rgba(17,24,39,0.45)]"
+    class="dialog w-[min(92vw,440px)] rounded-card border border-border bg-surface p-0 text-text backdrop:bg-[rgba(0,0,0,0.65)]"
     aria-labelledby="delete-title"
     @cancel.prevent="requestCancel"
     @click.self="requestCancel"

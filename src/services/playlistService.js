@@ -17,18 +17,32 @@ function isBadId(error) {
   return error?.code === '22P02'
 }
 
-/** All of the user's playlists, newest first, each with its song count. */
+/**
+ * All of the user's playlists, newest first. Each has its song count, its
+ * total length in seconds, and when it was last exported (null if never).
+ */
 export async function getPlaylists() {
   const { data, error } = await supabase
     .from('playlists')
-    .select(`${PLAYLIST_COLUMNS}, playlist_songs(count)`)
+    .select(
+      `${PLAYLIST_COLUMNS}, playlist_songs(songs(duration_seconds)), exports(created_at)`,
+    )
+    // Only exports that produced a file, and only the newest one.
+    .in('exports.status', ['completed', 'partial'])
     .order('created_at', { ascending: false })
+    .order('created_at', { referencedTable: 'exports', ascending: false })
+    .limit(1, { referencedTable: 'exports' })
 
   if (error) throw error
 
-  return data.map(({ playlist_songs, ...playlist }) => ({
+  return data.map(({ playlist_songs, exports, ...playlist }) => ({
     ...playlist,
-    song_count: playlist_songs?.[0]?.count ?? 0,
+    song_count: playlist_songs?.length ?? 0,
+    total_seconds: (playlist_songs ?? []).reduce(
+      (sum, link) => sum + (Number(link.songs?.duration_seconds) || 0),
+      0,
+    ),
+    last_exported_at: exports?.[0]?.created_at ?? null,
   }))
 }
 

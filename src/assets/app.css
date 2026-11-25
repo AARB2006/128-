@@ -28,32 +28,62 @@
   --color-danger-border: var(--c-danger-border);
   --color-selected: var(--c-selected);
   --color-focus: var(--c-focus);
+  --color-head: var(--c-head);
+  --color-accent-hover: var(--c-accent-hover);
+  --color-accent-soft: var(--c-accent-soft);
+  --color-accent-light: var(--c-accent-light);
+  --color-success: var(--c-success);
+  --color-success-bg: var(--c-success-bg);
+  --color-success-border: var(--c-success-border);
+  --color-warning: var(--c-warning);
+  --color-warning-bg: var(--c-warning-bg);
+  --color-warning-border: var(--c-warning-border);
   --radius-card: var(--radius);
+  --font-display: 'Inter Tight', Inter, system-ui, sans-serif;
 }
 
 /* Styles for the signed-in application. Everything is scoped under
    .app-shell or prefixed with app-, so it cannot affect the landing page or /poc. */
 
+/* Dark theme with the logo's violet. Every colour in the app comes from here. */
 .app-shell {
-  --c-bg: #f6f7f9;
-  --c-surface: #ffffff;
-  --c-border: #e3e6ea;
-  --c-hover: #f0f2f5;
-  --c-text: #111827;
-  --c-muted: #667085;
-  --c-accent: #111827;
+  --c-bg: #0f0f0f;            /* page */
+  --c-head: #141414;          /* sidebar, table headers */
+  --c-surface: #181818;       /* cards, inputs, tables, dialogs */
+  --c-border: #2a2a2a;
+  --c-hover: #222222;
+  --c-text: #f5f5f5;
+  --c-muted: #a3a3a3;
+  --c-accent: #6d5bff;        /* the logo's violet */
+  --c-accent-hover: #5b47f0;
   --c-accent-text: #ffffff;
-  --c-danger: #b42318;
-  --c-danger-bg: #fef3f2;
-  --c-danger-border: #fecdca;
-  --c-selected: #eef2ff;
-  --c-focus: #98a2b3;
+  --c-accent-soft: #221d3d;   /* selected rows, current page, pills */
+  --c-accent-light: #a99cff;  /* violet text and icons on dark */
+  --c-danger: #f97066;
+  --c-danger-bg: #2a1513;
+  --c-danger-border: #5c2420;
+  --c-success: #47cd89;
+  --c-success-bg: #0f2a1c;
+  --c-success-border: #1f5136;
+  --c-warning: #fdb022;
+  --c-warning-bg: #2a2010;
+  --c-warning-border: #5a4416;
+  --c-selected: #221d3d;
+  --c-focus: #a99cff;
   --radius: 12px;
 
   display: flex;
   min-height: 100vh;
   background: var(--c-bg);
   color: var(--c-text);
+  font-family: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Native controls (scrollbars, date pickers) follow the dark theme. */
+  color-scheme: dark;
+}
+
+.app-shell input[type='checkbox'],
+.app-shell input[type='radio'] {
+  accent-color: var(--c-accent);
 }
 
 .app-main {
@@ -67,6 +97,26 @@
 .app-shell input:focus-visible {
   outline: 3px solid var(--c-focus);
   outline-offset: 2px;
+}
+
+/* Landing page: the background bars drift slowly. Only `transform` changes,
+   so the browser animates them on the compositor without repainting. Each bar
+   sets its own --drift-x / --drift-y and duration. */
+@keyframes landing-drift {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+
+  to {
+    transform: translate3d(var(--drift-x, -40px), var(--drift-y, 0), 0);
+  }
+}
+
+/* Skeleton placeholders: a gentle opacity pulse (also compositor-only). */
+@keyframes skeleton-pulse {
+  50% {
+    opacity: 0.45;
+  }
 }
 
 /* The import progress bar (ImportProgress.vue). */
@@ -88,15 +138,24 @@
 
 @layer components {
   .app-page {
-    max-width: 960px;
+    max-width: 1280px;
     margin: 0 auto;
-    padding: 32px 24px 64px;
+    padding: 32px 40px 64px;
+  }
+
+  @media (max-width: 640px) {
+    .app-page {
+      padding: 24px 16px 48px;
+    }
   }
 
   .app-page-title {
     margin: 0 0 24px;
-    font-size: 28px;
-    line-height: 1.2;
+    font-family: var(--font-display);
+    font-size: 32px;
+    font-weight: 800;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
   }
 
   .app-card {
@@ -126,10 +185,10 @@
   .app-success {
     margin: 0 0 16px;
     padding: 12px 16px;
-    border: 1px solid #abefc6;
+    border: 1px solid var(--c-success-border);
     border-radius: 10px;
-    background: #ecfdf3;
-    color: #067647;
+    background: var(--c-success-bg);
+    color: var(--c-success);
   }
 
   .app-btn {
@@ -145,6 +204,7 @@
     color: var(--c-text);
     font: inherit;
     font-size: 15px;
+    font-weight: 500;
     text-decoration: none;
     cursor: pointer;
     transition: background 120ms ease, border-color 120ms ease;
@@ -166,11 +226,13 @@
   }
 
   .app-btn-primary:hover:not(:disabled) {
-    background: #1f2937;
+    border-color: var(--c-accent-hover);
+    background: var(--c-accent-hover);
   }
 
   .app-btn-danger {
     border-color: var(--c-danger-border);
+    background: transparent;
     color: var(--c-danger);
   }
 
@@ -181,11 +243,44 @@
   .app-btn-danger-solid {
     border-color: var(--c-danger);
     background: var(--c-danger);
-    color: #fff;
+    color: #1a0a08;
   }
 
   .app-btn-danger-solid:hover:not(:disabled) {
-    background: #912018;
+    background: #f04438;
+  }
+
+  /* Small rounded labels: counts, statuses, lengths. */
+  .app-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    border: 1px solid var(--c-border);
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.4;
+    white-space: nowrap;
+    color: var(--c-muted);
+  }
+
+  .app-pill-accent {
+    border-color: #3a3360;
+    background: var(--c-accent-soft);
+    color: var(--c-accent-light);
+  }
+
+  .app-pill-success {
+    border-color: var(--c-success-border);
+    background: var(--c-success-bg);
+    color: var(--c-success);
+  }
+
+  .app-pill-warning {
+    border-color: var(--c-warning-border);
+    background: var(--c-warning-bg);
+    color: var(--c-warning);
   }
 
   /* Buttons and inputs don't inherit the page font on their own. Kept here
@@ -193,6 +288,20 @@
      always wins, whatever order the classes are written in. */
   .font-inherit {
     font: inherit;
+  }
+
+  /* A grey placeholder shape shown while a page loads. */
+  .app-skeleton {
+    display: block;
+    border-radius: 6px;
+    background: var(--c-hover);
+    animation: skeleton-pulse 1.6s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .app-skeleton {
+      animation: none;
+    }
   }
 
   /* Hidden on screen, still read by screen readers. */

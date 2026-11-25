@@ -123,12 +123,13 @@ onBeforeUnmount(closeMenu)
   </button>
 
   <!-- The menu is teleported to <body>, outside .app-shell, so the --c-*
-       tokens don't reach it: its colours are written out literally. -->
+       tokens don't reach it: its colours are written out literally, matching
+       the dark theme (surface #1c1c1c, border #2a2a2a, hover #262626). -->
   <Teleport to="body">
     <div
       v-if="open"
       ref="menu"
-      class="row-menu fixed z-50 box-border w-[200px] rounded-[12px] border border-[#e3e6ea] bg-[#ffffff] p-1 shadow-[0_8px_24px_rgba(17,24,39,0.14)]"
+      class="row-menu fixed z-50 box-border w-[200px] rounded-[12px] border border-[#2a2a2a] bg-[#1c1c1c] p-1 font-[family-name:Inter,system-ui,sans-serif] shadow-[0_12px_32px_rgba(0,0,0,0.55)]"
       role="menu"
       :aria-label="label"
       :style="{ top: position.top + 'px', left: position.left + 'px' }"
@@ -137,8 +138,8 @@ onBeforeUnmount(closeMenu)
       <button
         v-for="item in items"
         :key="item.key"
-        class="item font-inherit block h-10 w-full cursor-pointer rounded-[8px] border-0 bg-transparent px-3 py-0 text-left text-[15px] focus-visible:bg-[#f0f2f5] focus-visible:outline-none enabled:hover:bg-[#f0f2f5] disabled:cursor-not-allowed disabled:opacity-45"
-        :class="item.danger ? 'danger text-[#b42318]' : 'text-[#111827]'"
+        class="item font-inherit block h-10 w-full cursor-pointer rounded-[8px] border-0 bg-transparent px-3 py-0 text-left text-[15px] focus-visible:bg-[#262626] focus-visible:outline-none enabled:hover:bg-[#262626] disabled:cursor-not-allowed disabled:opacity-45"
+        :class="item.danger ? 'danger text-[#f97066]' : 'text-[#f5f5f5]'"
         type="button"
         role="menuitem"
         :disabled="item.disabled"

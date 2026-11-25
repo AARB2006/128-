@@ -6,6 +6,8 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth.js'
 import SidebarIcon from './SidebarIcon.vue'
+import logoUrl from '@/assets/brand/ytmp3-logo.svg'
+import iconUrl from '@/assets/brand/ytmp3-icon.svg'
 
 defineProps({
   // Only used on small screens, where the sidebar is a slide-out drawer.
@@ -32,7 +34,8 @@ const iconBtn =
 // one, shows the hover colour.
 const navItem =
   'nav-item font-inherit flex w-full cursor-pointer items-center gap-3 rounded-[10px] border-0 bg-transparent px-3 py-2.5 text-left text-[15px] text-muted no-underline ' +
-  '[&.active]:bg-accent [&.active]:text-accent-text hover:not-disabled:bg-hover hover:not-disabled:text-text ' +
+  'hover:not-disabled:bg-hover hover:not-disabled:text-text ' +
+  '[&.active]:bg-accent-soft [&.active]:font-semibold [&.active]:text-text [&.active_svg]:text-accent-light ' +
   'disabled:cursor-not-allowed disabled:opacity-60 desktop:group-[.collapsed]:justify-center'
 
 const items = [
@@ -66,19 +69,26 @@ async function onSignOut() {
        Small screens: an off-canvas drawer opened from the top bar; `invisible`
        keeps its hidden links out of the tab order. -->
   <aside
-    class="sidebar group flex w-[240px] shrink-0 flex-col gap-4 border-r border-border bg-surface px-3 py-4 desktop:sticky desktop:top-0 desktop:h-screen desktop:transition-[width] desktop:duration-[160ms] desktop:ease-[ease] desktop:[&.collapsed]:w-[72px] mobile:invisible mobile:fixed mobile:inset-y-0 mobile:left-0 mobile:z-30 mobile:w-[260px] mobile:-translate-x-full mobile:[transition:translate_160ms_ease,visibility_0s_linear_160ms] mobile:[&.open]:visible mobile:[&.open]:translate-none mobile:[&.open]:[transition:translate_160ms_ease,visibility_0s]"
+    class="sidebar group flex w-[240px] shrink-0 flex-col gap-4 border-r border-border bg-head px-3 py-4 desktop:sticky desktop:top-0 desktop:h-screen desktop:transition-[width] desktop:duration-[160ms] desktop:ease-[ease] desktop:[&.collapsed]:w-[72px] mobile:invisible mobile:fixed mobile:inset-y-0 mobile:left-0 mobile:z-30 mobile:w-[260px] mobile:-translate-x-full mobile:[transition:translate_160ms_ease,visibility_0s_linear_160ms] mobile:[&.open]:visible mobile:[&.open]:translate-none mobile:[&.open]:[transition:translate_160ms_ease,visibility_0s]"
     :class="{ collapsed, open: mobileOpen }"
     aria-label="Main navigation"
   >
     <div
-      class="sidebar-head flex items-center justify-between gap-2 px-1 desktop:group-[.collapsed]:justify-center"
+      class="sidebar-head flex items-center justify-between gap-2 px-1 desktop:group-[.collapsed]:flex-col desktop:group-[.collapsed]:justify-center"
     >
-      <span
-        class="brand inline-flex items-center gap-2.5 text-[18px] font-bold desktop:group-[.collapsed]:hidden"
+      <!-- The full logo; collapsed, just its icon. -->
+      <RouterLink
+        :to="{ name: 'library' }"
+        class="brand inline-flex items-center rounded-[8px] desktop:group-[.collapsed]:hidden"
+        aria-label="YT-MP3, go to Music Library"
       >
-        <SidebarIcon name="music" />
-        <span :class="label">YT-MP3</span>
-      </span>
+        <img :src="logoUrl" alt="" class="block h-[24px] w-auto" />
+      </RouterLink>
+      <img
+        :src="iconUrl"
+        alt=""
+        class="brand-icon hidden size-8 desktop:group-[.collapsed]:block"
+      />
 
       <button
         :class="[iconBtn, 'collapse-btn inline-flex mobile:hidden']"
@@ -121,7 +131,7 @@ async function onSignOut() {
         class="user flex items-center gap-2.5 px-3 py-1 desktop:group-[.collapsed]:justify-center desktop:group-[.collapsed]:px-0"
       >
         <span
-          class="avatar inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-hover text-[13px] font-bold"
+          class="avatar inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-accent text-[13px] font-bold text-accent-text"
           aria-hidden="true"
         >
           {{ initial }}

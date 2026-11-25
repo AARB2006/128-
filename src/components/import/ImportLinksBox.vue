@@ -14,7 +14,7 @@ defineProps({
 
 <template>
   <div
-    class="links-box relative rounded-card border border-border bg-surface focus-within:outline-3 focus-within:outline-offset-2 focus-within:outline-focus [&.over]:border-danger"
+    class="links-box relative rounded-[10px] border border-border bg-bg focus-within:outline-3 focus-within:outline-offset-2 focus-within:outline-focus [&.over]:border-danger"
     :class="{ over: overLimit, disabled }"
   >
     <label class="visually-hidden" for="import-links">YouTube video links</label>
@@ -22,7 +22,7 @@ defineProps({
     <textarea
       id="import-links"
       v-model="text"
-      class="font-inherit block min-h-[280px] w-full resize-y rounded-card border-0 bg-transparent px-4.5 pt-4 pb-12 text-[16px] leading-[1.5] text-text outline-0 placeholder:text-muted disabled:cursor-not-allowed disabled:text-muted"
+      class="block min-h-[260px] w-full resize-y rounded-[10px] border-0 bg-transparent px-4 pt-3.5 pb-12 font-mono text-[14px] leading-[1.7] text-text outline-0 placeholder:text-muted disabled:cursor-not-allowed disabled:text-muted"
       :disabled="disabled"
       placeholder="Paste YouTube links here, one per line..."
       spellcheck="false"

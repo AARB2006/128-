@@ -8,7 +8,11 @@ import { usePlaylistDetail } from '@/composables/usePlaylistDetail.js'
 import { useSongPicker } from '@/composables/useSongPicker.js'
 import { useSongSearch } from '@/composables/useSongSearch.js'
 import { useSongSelection } from '@/composables/useSongSelection.js'
-import PageToolbar from '@/components/ui/PageToolbar.vue'
+import PageHeader from '@/components/ui/PageHeader.vue'
+import ListCard from '@/components/ui/ListCard.vue'
+import SelectionBar from '@/components/ui/SelectionBar.vue'
+import ListSkeleton from '@/components/ui/ListSkeleton.vue'
+import { formatDay, plural, totalDuration } from '@/lib/format.js'
 import PlaylistSongList from '@/components/playlists/PlaylistSongList.vue'
 import EditPlaylistDialog from '@/components/playlists/EditPlaylistDialog.vue'
 import AddSongsDialog from '@/components/playlists/AddSongsDialog.vue'
@@ -124,6 +128,11 @@ const description = computed(() => playlist.value?.description || '')
 const edit =
   'edit font-inherit -ml-1.5 block max-w-full cursor-pointer rounded-[8px] border-0 bg-transparent px-1.5 py-0.5 text-left wrap-anywhere hover:bg-hover'
 
+// The labels under the description.
+const songsLabel = computed(() => plural(songs.value.length, 'song'))
+const lengthLabel = computed(() => `${totalDuration(songs.value)} total`)
+const createdLabel = computed(() => `Created ${formatDay(playlist.value?.created_at)}`)
+
 // ---- export ----------------------------------------------------------------------
 const exportJob = useExportJob()
 const exportOpen = ref(false)
@@ -152,12 +161,36 @@ const exportTarget = computed(() =>
   <section class="app-page">
     <RouterLink
       :to="{ name: 'playlists' }"
-      class="back mb-4 inline-block text-[14px] text-muted no-underline hover:text-text hover:underline"
+      class="back mb-3.5 inline-flex items-center gap-1.5 text-[14px] text-muted no-underline hover:text-text"
     >
-      ← Playlists
+      <svg
+        class="size-4"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M19 12H5M12 19l-7-7 7-7" />
+      </svg>
+      Playlists
     </RouterLink>
 
-    <p v-if="loading" class="app-muted">Loading this playlist…</p>
+    <!-- Placeholders shaped like the page while the playlist loads. -->
+    <div v-if="loading" class="loading">
+      <div class="mb-6" aria-hidden="true">
+        <span class="app-skeleton h-10 w-[min(360px,80%)] rounded-[8px]"></span>
+        <span class="app-skeleton mt-3 h-4 w-40"></span>
+        <span class="mt-3.5 flex gap-2">
+          <span class="app-skeleton h-6 w-20 rounded-full"></span>
+          <span class="app-skeleton h-6 w-24 rounded-full"></span>
+          <span class="app-skeleton h-6 w-40 rounded-full"></span>
+        </span>
+      </div>
+      <ListSkeleton label="Loading this playlist" :rows="5" lead="thumb" :columns="['90px']" />
+    </div>
 
     <div v-else-if="loadError" class="app-alert" role="alert">
       <span>{{ loadError }}</span>
@@ -177,56 +210,51 @@ const exportTarget = computed(() =>
 
     <template v-else-if="playlist">
       <!-- The name and description look like text but can be clicked to edit. -->
-      <header class="head mb-5">
-        <h1 class="name m-0 text-[32px] leading-[1.2]">
-          <button
-            :class="[edit, 'name-button text-[32px] leading-[1.2] font-bold text-inherit']"
-            type="button"
-            title="Edit name"
-            @click="openEdit('name')"
-          >
-            {{ playlist.name }}
-          </button>
-        </h1>
-        <button
-          :class="[
-            edit,
-            'description-button mt-1 text-[15px] leading-[1.5] whitespace-pre-line text-muted [&.is-empty]:italic',
-            { 'is-empty': !description },
-          ]"
-          type="button"
-          :title="description ? 'Edit description' : 'Add a description'"
-          @click="openEdit('description')"
-        >
-          {{ description || 'Add a description' }}
-        </button>
-      </header>
-
-      <PageToolbar v-model:query="query" placeholder="Search songs">
-        <template #left>
-          <button class="app-btn app-btn-primary" type="button" @click="openPicker">
-            Add Song
-          </button>
+      <PageHeader>
+        <template #title>
+          <h1 class="name m-0">
+            <button
+              :class="[
+                edit,
+                'name-button font-display text-[40px] leading-[1.15] font-extrabold tracking-[-0.02em] text-inherit phone:text-[30px]',
+              ]"
+              type="button"
+              title="Edit name"
+              @click="openEdit('name')"
+            >
+              {{ playlist.name }}
+            </button>
+          </h1>
         </template>
-
-        <template #right>
-          <span v-if="selectedCount" class="count text-[14px] text-muted" aria-live="polite">
-            {{ selectedCount }} selected
-          </span>
+        <template #below>
           <button
-            v-if="selectedCount"
-            class="app-btn"
+            :class="[
+              edit,
+              'description-button mt-1 text-[15px] leading-[1.5] whitespace-pre-line text-muted [&.is-empty]:italic',
+              { 'is-empty': !description },
+            ]"
             type="button"
-            :disabled="busy"
-            @click="onRemove([...selectedIds])"
+            :title="description ? 'Edit description' : 'Add a description'"
+            @click="openEdit('description')"
           >
-            Remove Songs
+            {{ description || 'Add a description' }}
           </button>
-          <button class="app-btn app-btn-danger" type="button" @click="confirmDelete = true">
+          <p class="meta mt-2.5 mb-0 flex flex-wrap gap-2">
+            <span class="app-pill app-pill-accent">{{ songsLabel }}</span>
+            <span class="app-pill">{{ lengthLabel }}</span>
+            <span class="app-pill">{{ createdLabel }}</span>
+          </p>
+        </template>
+        <template #actions>
+          <button
+            class="app-btn app-btn-danger min-h-11"
+            type="button"
+            @click="confirmDelete = true"
+          >
             Delete Playlist
           </button>
           <button
-            class="app-btn"
+            class="app-btn min-h-11"
             type="button"
             :disabled="!songs.length || exportJob.busy.value"
             :title="exportTitle"
@@ -234,8 +262,26 @@ const exportTarget = computed(() =>
           >
             {{ exportingThis ? 'Exporting…' : 'Export Playlist' }}
           </button>
+          <button
+            class="app-btn app-btn-primary min-h-11 px-[18px]"
+            type="button"
+            @click="openPicker"
+          >
+            <svg
+              class="size-[18px]"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            Add Song
+          </button>
         </template>
-      </PageToolbar>
+      </PageHeader>
 
       <p v-if="notice" class="app-success" role="status">{{ notice }}</p>
       <p v-if="actionError && !picker.open.value" class="app-alert" role="alert">
@@ -253,21 +299,45 @@ const exportTarget = computed(() =>
         </button>
       </div>
 
-      <p v-else-if="!results.length" class="app-muted">No songs match “{{ query }}”.</p>
+      <ListCard v-else v-model:query="query" placeholder="Search songs">
+        <template #tools>
+          <SelectionBar v-if="selectedCount" :count="selectedCount" @clear="clear">
+            <button
+              class="app-btn min-h-9"
+              type="button"
+              :disabled="busy"
+              @click="onRemove([...selectedIds])"
+            >
+              Remove Songs
+            </button>
+          </SelectionBar>
+          <span v-else class="hint pr-1 text-[14px] text-muted phone:hidden">
+            {{ searching ? 'Clear the search to reorder songs' : 'Drag rows to reorder' }}
+          </span>
+        </template>
 
-      <PlaylistSongList
-        v-else
-        :songs="results"
-        :selected-ids="selectedIds"
-        :all-selected="allSelected"
-        :some-selected="someSelected"
-        :can-move="canMove"
-        @toggle="toggle"
-        @toggle-all="toggleAll"
-        @reorder="reorder"
-        @move="({ id, step }) => moveSong(id, step)"
-        @remove="onRemove([$event])"
-      />
+        <p v-if="!results.length" class="m-0 px-4 py-10 text-center text-muted">
+          No songs match “{{ query }}”.
+        </p>
+        <PlaylistSongList
+          v-else
+          :songs="results"
+          :selected-ids="selectedIds"
+          :all-selected="allSelected"
+          :some-selected="someSelected"
+          :can-move="canMove"
+          @toggle="toggle"
+          @toggle-all="toggleAll"
+          @reorder="reorder"
+          @move="({ id, step }) => moveSong(id, step)"
+          @remove="onRemove([$event])"
+        />
+
+        <template #footer>
+          <span>{{ songsLabel }}</span>
+          <span>Changes save automatically</span>
+        </template>
+      </ListCard>
 
       <EditPlaylistDialog
         :open="editing"

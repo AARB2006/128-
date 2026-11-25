@@ -37,12 +37,15 @@ const fillClass = computed(() => {
 
 <template>
   <div
-    class="progress group rounded-card border border-border bg-surface px-4.5 py-4"
+    class="progress group rounded-card border border-border bg-surface p-6"
     :class="{ failed }"
     role="status"
     aria-live="polite"
   >
-    <p class="label mt-0 mb-2.5 text-[16px] font-bold tabular-nums">{{ label }}</p>
+    <p class="label mt-0 mb-3 flex justify-between gap-3 text-[15px] font-semibold tabular-nums">
+      <span>{{ label }}</span>
+      <span v-if="phase !== 'starting'" class="font-normal text-muted">{{ percent }}%</span>
+    </p>
 
     <div
       class="track relative h-3.5 overflow-hidden rounded-full bg-hover shadow-[inset_0_0_0_1px_var(--c-border)]"

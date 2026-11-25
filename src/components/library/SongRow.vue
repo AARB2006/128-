@@ -3,6 +3,8 @@ One row of the library song table.
 -->
 <script setup>
 import { computed } from 'vue'
+import SongThumb from '@/components/ui/SongThumb.vue'
+import { formatDay, formatDuration, shortUrl } from '@/lib/format.js'
 
 const props = defineProps({
   song: { type: Object, required: true },
@@ -11,7 +13,7 @@ const props = defineProps({
 defineEmits(['toggle', 'show-playlists'])
 
 // Shared by every cell. The row is a `group`, so cells turn blue when it's selected.
-const cell = 'border-t border-border px-4 py-3.5 align-middle group-[.selected]:bg-selected'
+const cell = 'border-t border-border px-4 py-3 align-middle group-[.selected]:bg-selected'
 
 // Only ever link to http(s) addresses, never to anything like javascript:.
 const safeUrl = computed(() =>
@@ -24,17 +26,13 @@ const playlistCount = computed(() => {
   return `${n} ${n === 1 ? 'playlist' : 'playlists'}`
 })
 
-const added = computed(() =>
-  new Date(props.song.date_added).toLocaleString(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }),
-)
+const added = computed(() => formatDay(props.song.date_added))
+const length = computed(() => formatDuration(props.song.duration_seconds))
 </script>
 
 <template>
   <tr class="group" :class="{ selected }">
-    <td :class="[cell, 'check w-12']">
+    <td :class="[cell, 'check w-11 pr-0']">
       <input
         class="size-[18px] cursor-pointer"
         type="checkbox"
@@ -44,24 +42,35 @@ const added = computed(() =>
       />
     </td>
 
-    <td :class="[cell, 'song wrap-anywhere']">
-      <span class="title block font-bold">{{ song.title }}</span>
-      <a
-        v-if="safeUrl"
-        class="source mt-0.5 block text-[13px] text-muted"
-        :href="safeUrl"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        {{ safeUrl }}
-      </a>
-      <span v-else class="source mt-0.5 block text-[13px] text-muted">{{ song.source_url }}</span>
+    <td :class="[cell, 'song']">
+      <div class="flex min-w-0 items-center gap-3.5">
+        <SongThumb :video-id="song.video_id" />
+        <div class="min-w-0">
+          <span class="title block truncate font-semibold" :title="song.title">{{ song.title }}</span>
+          <a
+            v-if="safeUrl"
+            class="source mt-0.5 block truncate text-[13px] text-muted no-underline hover:text-text hover:underline"
+            :href="safeUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {{ shortUrl(safeUrl) }}
+          </a>
+          <span v-else class="source mt-0.5 block truncate text-[13px] text-muted">
+            {{ song.source_url }}
+          </span>
+        </div>
+      </div>
     </td>
 
-    <td :class="[cell, 'playlists w-[200px] text-[14px] wrap-anywhere phone:w-[110px]']">
+    <td :class="[cell, 'length w-[90px] text-[14px] text-muted tabular-nums phone:hidden']">
+      {{ length }}
+    </td>
+
+    <td :class="[cell, 'playlists w-[150px] phone:w-[120px]']">
       <button
         v-if="song.playlists?.length"
-        class="count font-inherit -ml-2.5 cursor-pointer rounded-full border-0 bg-transparent px-2.5 py-1 text-[14px] text-text underline decoration-border underline-offset-3 hover:bg-hover hover:decoration-current"
+        class="count app-pill app-pill-accent font-inherit cursor-pointer hover:border-accent"
         type="button"
         :aria-label="`${playlistCount}. Show playlist names`"
         @click="$emit('show-playlists', song)"
@@ -71,7 +80,7 @@ const added = computed(() =>
       <span v-else class="none text-muted" aria-label="Not in any playlist">-</span>
     </td>
 
-    <td :class="[cell, 'added w-[190px] text-[14px] whitespace-nowrap text-muted phone:hidden']">
+    <td :class="[cell, 'added w-[140px] text-[14px] whitespace-nowrap text-muted phone:hidden']">
       {{ added }}
     </td>
   </tr>

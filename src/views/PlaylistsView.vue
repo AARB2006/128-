@@ -6,7 +6,11 @@ import { onMounted, ref, computed } from 'vue'
 import { usePlaylists } from '@/composables/usePlaylists.js'
 import { useSongSearch } from '@/composables/useSongSearch.js'
 import { useSongSelection } from '@/composables/useSongSelection.js'
-import PageToolbar from '@/components/ui/PageToolbar.vue'
+import PageHeader from '@/components/ui/PageHeader.vue'
+import ListCard from '@/components/ui/ListCard.vue'
+import SelectionBar from '@/components/ui/SelectionBar.vue'
+import ListSkeleton from '@/components/ui/ListSkeleton.vue'
+import { plural } from '@/lib/format.js'
 import PlaylistTable from '@/components/playlists/PlaylistTable.vue'
 import DeletePlaylistsDialog from '@/components/playlists/DeletePlaylistsDialog.vue'
 import ExportPlaylistDialog from '@/components/export/ExportPlaylistDialog.vue'
@@ -44,33 +48,40 @@ async function onConfirmDelete() {
 
 <template>
   <section class="app-page">
-    <h1 class="app-page-title">Playlists</h1>
-
-    <PageToolbar v-model:query="query" placeholder="Search playlists">
-      <template #left>
-        <RouterLink :to="{ name: 'playlist-new' }" class="app-btn app-btn-primary">
+    <PageHeader
+      title="Playlists"
+      description="Group songs from your library, put them in order, and export them as MP3s."
+    >
+      <template #actions>
+        <RouterLink
+          :to="{ name: 'playlist-new' }"
+          class="app-btn app-btn-primary min-h-11 px-[18px]"
+        >
+          <svg
+            class="size-[18px]"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <path d="M12 5v14M5 12h14" />
+          </svg>
           Add Playlist
         </RouterLink>
       </template>
-
-      <template #right>
-        <span v-if="selectedCount" class="count text-[14px] text-muted" aria-live="polite">
-          {{ selectedCount }} selected
-        </span>
-        <button
-          class="app-btn app-btn-danger"
-          type="button"
-          :disabled="!selectedCount"
-          @click="confirmOpen = true"
-        >
-          Delete Playlist
-        </button>
-      </template>
-    </PageToolbar>
+    </PageHeader>
 
     <p v-if="actionError" class="app-alert" role="alert">{{ actionError }}</p>
 
-    <p v-if="loading" class="app-muted">Loading your playlists…</p>
+    <ListSkeleton
+      v-if="loading"
+      label="Loading your playlists"
+      :rows="4"
+      lead="tile"
+      :columns="['90px', '90px', '140px', '150px']"
+    />
 
     <div v-else-if="error" class="app-alert" role="alert">
       <span>{{ error }}</span>
@@ -88,18 +99,37 @@ async function onConfirmDelete() {
       </RouterLink>
     </div>
 
-    <p v-else-if="!results.length" class="app-muted">No playlists match “{{ query }}”.</p>
+    <ListCard v-else v-model:query="query" placeholder="Search playlists">
+      <template #tools>
+        <SelectionBar v-if="selectedCount" :count="selectedCount" @clear="clear">
+          <button class="app-btn app-btn-danger min-h-9" type="button" @click="confirmOpen = true">
+            Delete
+          </button>
+        </SelectionBar>
+        <span v-else class="hint pr-1 text-[14px] text-muted phone:hidden">
+          Tick playlists to delete them
+        </span>
+      </template>
 
-    <PlaylistTable
-      v-else
-      :playlists="results"
-      :selected-ids="selectedIds"
-      :all-selected="allSelected"
-      :some-selected="someSelected"
-      @toggle="toggle"
-      @toggle-all="toggleAll"
-      @export="exportTarget = $event"
-    />
+      <p v-if="!results.length" class="m-0 px-4 py-10 text-center text-muted">
+        No playlists match “{{ query }}”.
+      </p>
+      <PlaylistTable
+        v-else
+        :playlists="results"
+        :selected-ids="selectedIds"
+        :all-selected="allSelected"
+        :some-selected="someSelected"
+        @toggle="toggle"
+        @toggle-all="toggleAll"
+        @export="exportTarget = $event"
+      />
+
+      <template #footer>
+        <span>{{ plural(playlists.length, 'playlist') }}</span>
+        <span>Showing {{ results.length }} of {{ playlists.length }}</span>
+      </template>
+    </ListCard>
 
     <ExportPlaylistDialog
       :open="Boolean(exportTarget)"

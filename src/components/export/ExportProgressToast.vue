@@ -195,8 +195,8 @@ async function onConfirmCancel() {
   background: var(--c-surface);
   color: var(--c-text);
   box-shadow:
-    0 12px 32px rgba(17, 24, 39, 0.14),
-    0 2px 6px rgba(17, 24, 39, 0.08);
+    0 16px 40px rgba(0, 0, 0, 0.5),
+    0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
 .export-toast.collapsed {

@@ -15,7 +15,7 @@ const props = defineProps({
 defineEmits(['toggle', 'toggle-all'])
 
 // The look of every header cell.
-const th = 'bg-bg px-4 py-3 text-left text-[13px] font-bold tracking-[0.04em] text-muted uppercase'
+const th = 'bg-head px-4 py-3 text-left text-[12px] font-semibold tracking-[0.06em] text-muted uppercase'
 
 // One popup shared by all rows: which playlists contain the clicked song.
 const shown = ref(null)
@@ -28,11 +28,11 @@ watchEffect(() => {
 </script>
 
 <template>
-  <div class="table-wrap overflow-hidden rounded-card border border-border bg-surface">
-    <table class="w-full border-collapse">
+  <div class="table-wrap">
+    <table class="w-full min-w-[560px] table-fixed border-collapse">
       <thead>
         <tr>
-          <th :class="[th, 'check w-12']">
+          <th :class="[th, 'check w-11 pr-0']">
             <input
               ref="selectAll"
               class="size-[18px] cursor-pointer"
@@ -43,8 +43,9 @@ watchEffect(() => {
             />
           </th>
           <th :class="th">Song</th>
-          <th :class="[th, 'playlists w-[200px] phone:w-[110px]']">Playlists</th>
-          <th :class="[th, 'added w-[190px] phone:hidden']">Date added</th>
+          <th :class="[th, 'length w-[90px] phone:hidden']">Length</th>
+          <th :class="[th, 'playlists w-[150px] phone:w-[120px]']">Playlists</th>
+          <th :class="[th, 'added w-[140px] phone:hidden']">Added</th>
         </tr>
       </thead>
       <tbody>

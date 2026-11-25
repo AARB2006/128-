@@ -7,6 +7,7 @@ import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import AppSidebar from './AppSidebar.vue'
 import SidebarIcon from './SidebarIcon.vue'
+import logoUrl from '@/assets/brand/ytmp3-logo.svg'
 import ExportProgressToast from '@/components/export/ExportProgressToast.vue'
 import { useExportJob } from '@/composables/useExportJob.js'
 import '@/assets/app.css'
@@ -44,7 +45,7 @@ onBeforeUnmount(() => {
   <div class="app-shell mobile:flex-col">
     <!-- Only shown on small screens, where the sidebar becomes a drawer. -->
     <header
-      class="mobile-bar sticky top-0 z-10 hidden items-center gap-3 border-b border-border bg-surface px-3 py-2 mobile:flex"
+      class="mobile-bar sticky top-0 z-10 hidden items-center gap-3 border-b border-border bg-head px-3 py-2 mobile:flex"
     >
       <button
         class="menu-btn inline-flex size-10 cursor-pointer items-center justify-center rounded-[10px] border-0 bg-transparent text-text hover:bg-hover"
@@ -55,13 +56,13 @@ onBeforeUnmount(() => {
       >
         <SidebarIcon name="menu" />
       </button>
-      <span class="mobile-title font-bold">YT-MP3</span>
+      <img :src="logoUrl" alt="YT-MP3" class="mobile-title block h-[22px] w-auto" />
     </header>
 
     <AppSidebar :mobile-open="mobileOpen" @close="mobileOpen = false" />
     <div
       v-if="mobileOpen"
-      class="scrim fixed inset-0 z-20 bg-[rgba(17,24,39,0.45)]"
+      class="scrim fixed inset-0 z-20 bg-[rgba(0,0,0,0.65)]"
       @click="mobileOpen = false"
     />
 

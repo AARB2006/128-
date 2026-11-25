@@ -12,6 +12,10 @@ import {
 } from '@/services/exportService.js'
 import { useExportJob } from '@/composables/useExportJob.js'
 import RowMenu from '@/components/ui/RowMenu.vue'
+import PageHeader from '@/components/ui/PageHeader.vue'
+import ListCard from '@/components/ui/ListCard.vue'
+import ListSkeleton from '@/components/ui/ListSkeleton.vue'
+import { plural } from '@/lib/format.js'
 import ExportPlaylistDialog from '@/components/export/ExportPlaylistDialog.vue'
 import DeleteExportsDialog from '@/components/export/DeleteExportsDialog.vue'
 
@@ -150,55 +154,93 @@ async function onConfirmDelete() {
 }
 
 const hasRows = computed(() => exportsList.value.length > 0)
+
+// ---- search and row details ------------------------------------------------------
+const query = ref('')
+const shown = computed(() => {
+  const q = query.value.trim().toLowerCase()
+  return q ? exportsList.value.filter((row) => nameOf(row).toLowerCase().includes(q)) : exportsList.value
+})
+
+// "2 of 3 · 1 skipped" for partial exports, "3 songs" otherwise.
+function songsLabel(row) {
+  if (row.status !== 'partial') return plural(row.exported_songs, 'song')
+  const skipped = row.total_songs - row.exported_songs
+  return `${row.exported_songs} of ${row.total_songs} · ${skipped} skipped`
+}
+
+// The one action worth a button: Download while the file exists, otherwise
+// Export again if the playlist still exists.
+function mainAction(row) {
+  if (!isExpired(row, now.value)) return { key: 'download', label: 'Download' }
+  if (row.playlist && !busy.value) return { key: 'again', label: 'Export again' }
+  return null
+}
 </script>
 
 <template>
   <section class="app-page">
-    <h1 class="app-page-title">Export History</h1>
-    <p class="app-muted intro">
-      Playlists you exported recently. Each ZIP can be downloaded again for a short time
-      after it's made; after that, export the playlist again.
-    </p>
+    <PageHeader
+      title="Export History"
+      description="Playlists you exported recently. Each ZIP can be downloaded again for 60 minutes."
+    >
+      <template v-if="hasRows" #actions>
+        <button class="app-btn app-btn-danger min-h-11" type="button" @click="askClearHistory">
+          Delete History
+        </button>
+      </template>
+    </PageHeader>
 
     <p v-if="actionError" class="app-alert" role="alert">{{ actionError }}</p>
 
-    <p v-if="loading" class="app-muted">Loading your exports…</p>
+    <ListSkeleton
+      v-if="loading"
+      label="Loading your exports"
+      :rows="4"
+      lead="tile"
+      :checkbox="false"
+      :columns="['190px', '170px', '180px', '120px']"
+    />
 
     <div v-else-if="loadError" class="app-alert" role="alert">
       <span>{{ loadError }}</span>
       <button class="app-btn" type="button" @click="load()">Try again</button>
     </div>
 
-    <div v-else-if="!hasRows" class="app-card empty">
-      <h2>No exports yet</h2>
-      <p class="app-muted">Open a playlist and choose Export Playlist.</p>
+    <div
+      v-else-if="!hasRows"
+      class="app-card empty flex flex-col items-center gap-2 px-6 py-12 text-center"
+    >
+      <h2 class="m-0 text-[20px]">No exports yet</h2>
+      <p class="app-muted mt-0 mb-3">Open a playlist and choose Export Playlist.</p>
       <RouterLink :to="{ name: 'playlists' }" class="app-btn app-btn-primary">
         Go to Playlists
       </RouterLink>
     </div>
 
-    <template v-else>
-    <div class="toolbar">
-      <button class="app-btn app-btn-danger" type="button" @click="askClearHistory">
-        Delete History
-      </button>
-    </div>
+    <ListCard v-else v-model:query="query" placeholder="Search exports">
+      <template #tools>
+        <span class="hint pr-1 text-[14px] text-muted phone:hidden">Newest first</span>
+      </template>
 
-    <div class="table-wrap">
-      <table>
+      <p v-if="!shown.length" class="m-0 px-4 py-10 text-center text-muted">
+        No exports match “{{ query }}”.
+      </p>
+      <table v-else class="w-full min-w-[820px] table-fixed border-collapse">
         <thead>
           <tr>
-            <th class="toggle"><span class="visually-hidden">Show songs</span></th>
+            <th class="toggle w-12 pr-0"><span class="visually-hidden">Show songs</span></th>
             <th>Playlist</th>
-            <th class="date">Exported</th>
-            <th class="songs">Songs</th>
-            <th class="menu"><span class="visually-hidden">Actions</span></th>
+            <th class="w-[190px]">Exported</th>
+            <th class="w-[170px]">Songs</th>
+            <th class="w-[180px]">File</th>
+            <th class="w-[170px]"><span class="visually-hidden">Actions</span></th>
           </tr>
         </thead>
 
-        <tbody v-for="row in exportsList" :key="row.export_id">
+        <tbody v-for="row in shown" :key="row.export_id">
           <tr :class="{ open: expanded.has(row.export_id) }">
-            <td class="toggle">
+            <td class="toggle pr-0">
               <button
                 class="toggle-btn"
                 type="button"
@@ -211,44 +253,78 @@ const hasRows = computed(() => exportsList.value.length > 0)
               </button>
             </td>
 
-            <td class="name-cell">
-              <RouterLink
-                v-if="row.playlist"
-                class="name"
-                :to="{ name: 'playlist', params: { playlistId: row.playlist_id } }"
+            <td>
+              <div class="flex min-w-0 items-center gap-3.5">
+                <span
+                  class="inline-flex size-10 shrink-0 items-center justify-center rounded-[10px] bg-accent-soft text-accent-light"
+                  aria-hidden="true"
+                >
+                  <svg
+                    class="size-[18px]"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M3 6h12M3 12h12M3 18h8" />
+                    <path d="M19 4v12" />
+                    <circle cx="17" cy="17" r="2.5" />
+                  </svg>
+                </span>
+                <RouterLink
+                  v-if="row.playlist"
+                  class="name truncate"
+                  :to="{ name: 'playlist', params: { playlistId: row.playlist_id } }"
+                  :title="row.playlist_name"
+                >
+                  {{ row.playlist_name }}
+                </RouterLink>
+                <span v-else class="name deleted">Deleted playlist</span>
+              </div>
+            </td>
+
+            <td class="text-[14px] whitespace-nowrap text-muted">{{ formatDate(row.created_at) }}</td>
+
+            <td>
+              <span
+                class="app-pill"
+                :class="row.status === 'partial' ? 'app-pill-warning' : 'app-pill-accent'"
               >
-                {{ row.playlist_name }}
-              </RouterLink>
-              <span v-else class="name deleted">Deleted playlist</span>
-              <span class="sub app-muted">
-                <template v-if="isExpired(row, now)">Download expired</template>
-                <template v-else>
-                  Download available until {{ formatTime(row.file_expires_at) }}
-                </template>
+                {{ songsLabel(row) }}
               </span>
             </td>
 
-            <td class="date">{{ formatDate(row.created_at) }}</td>
-
-            <td class="songs">
-              <template v-if="row.status === 'partial'">
-                {{ row.exported_songs }} of {{ row.total_songs }}
-              </template>
-              <template v-else>{{ row.exported_songs }}</template>
+            <td>
+              <span v-if="isExpired(row, now)" class="app-pill">Expired</span>
+              <span v-else class="app-pill app-pill-success">
+                Ready until {{ formatTime(row.file_expires_at) }}
+              </span>
             </td>
 
-            <td class="menu">
-              <RowMenu
-                :items="menuItems(row)"
-                :label="`Actions for ${nameOf(row)}`"
-                @select="onMenu(row, $event)"
-              />
+            <td class="text-right">
+              <span class="inline-flex items-center gap-1">
+                <button
+                  v-if="mainAction(row)"
+                  class="app-btn min-h-[34px] px-3 text-[14px]"
+                  type="button"
+                  @click="onMenu(row, mainAction(row).key)"
+                >
+                  {{ mainAction(row).label }}
+                </button>
+                <RowMenu
+                  :items="menuItems(row)"
+                  :label="`More actions for ${nameOf(row)}`"
+                  @select="onMenu(row, $event)"
+                />
+              </span>
             </td>
           </tr>
 
           <tr v-if="expanded.has(row.export_id)" class="details">
             <td></td>
-            <td colspan="4">
+            <td colspan="5">
               <ol :id="`songs-${row.export_id}`" class="song-list">
                 <li
                   v-for="item in row.export_items"
@@ -268,8 +344,12 @@ const hasRows = computed(() => exportsList.value.length > 0)
           </tr>
         </tbody>
       </table>
-    </div>
-    </template>
+
+      <template #footer>
+        <span>{{ plural(exportsList.length, 'export') }}</span>
+        <span>Showing {{ shown.length }} of {{ exportsList.length }}</span>
+      </template>
+    </ListCard>
 
     <DeleteExportsDialog
       :open="Boolean(deleteTarget)"
@@ -290,48 +370,21 @@ const hasRows = computed(() => exportsList.value.length > 0)
 </template>
 
 <style scoped>
-.intro {
-  margin: -12px 0 24px;
-}
-
-.toolbar {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 12px;
-}
-
-.table-wrap {
-  overflow: hidden;
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius);
-  background: var(--c-surface);
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
 th {
   padding: 12px 16px;
-  background: var(--c-bg);
-  font-size: 13px;
-  font-weight: bold;
+  background: var(--c-head);
+  font-size: 12px;
+  font-weight: 600;
   color: var(--c-muted);
   text-align: left;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
 }
 
 td {
-  padding: 14px 16px;
+  padding: 12px 16px;
   border-top: 1px solid var(--c-border);
   vertical-align: middle;
-}
-
-.toggle {
-  width: 48px;
-  padding-right: 0;
 }
 
 .toggle-btn {
@@ -365,14 +418,10 @@ tr.open .chevron {
   transform: translateY(-2px) rotate(45deg);
 }
 
-.name-cell {
-  overflow-wrap: anywhere;
-}
-
 .name {
   display: block;
   color: var(--c-text);
-  font-weight: bold;
+  font-weight: 600;
   text-decoration: none;
 }
 
@@ -385,36 +434,6 @@ a.name:hover {
   font-style: italic;
 }
 
-.file.gone {
-  color: var(--c-muted);
-  font-style: italic;
-}
-
-.sub {
-  display: block;
-  margin-top: 2px;
-  font-size: 13px;
-}
-
-.date {
-  width: 190px;
-  font-size: 14px;
-  color: var(--c-muted);
-  white-space: nowrap;
-}
-
-.songs {
-  width: 110px;
-  font-size: 14px;
-  font-variant-numeric: tabular-nums;
-}
-
-.menu {
-  width: 56px;
-  padding-left: 0;
-  text-align: right;
-}
-
 .details td {
   padding-top: 0;
   border-top: 0;
@@ -422,7 +441,8 @@ a.name:hover {
 
 .song-list {
   margin: 0;
-  padding: 12px 16px 4px 32px;
+  padding: 12px 16px 4px 36px;
+  border: 1px solid var(--c-border);
   border-radius: 10px;
   background: var(--c-bg);
   font-size: 14px;
@@ -438,44 +458,20 @@ a.name:hover {
   text-decoration: line-through;
 }
 
+.file.gone {
+  color: var(--c-muted);
+  font-style: italic;
+}
+
 .reason {
   display: block;
   font-size: 13px;
   color: var(--c-danger);
 }
 
-.empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 48px 24px;
-  text-align: center;
-}
-
-.empty h2 {
-  margin: 0;
-  font-size: 20px;
-}
-
-.empty p {
-  margin: 0 0 12px;
-}
-
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  border: 0;
-}
-
-@media (max-width: 640px) {
-  th.date,
-  td.date {
-    display: none;
+@media (prefers-reduced-motion: reduce) {
+  .chevron {
+    transition: none;
   }
 }
 </style>

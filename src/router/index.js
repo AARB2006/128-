@@ -12,7 +12,6 @@ import PlaylistsView from '@/views/PlaylistsView.vue'
 import PlaylistNewView from '@/views/PlaylistNewView.vue'
 import PlaylistDetailView from '@/views/PlaylistDetailView.vue'
 import ExportHistoryView from '@/views/ExportHistoryView.vue'
-import AccountView from '@/views/AccountView.vue'
 
 const routes = [
   { path: '/', name: 'landing', component: LandingView },
@@ -38,7 +37,8 @@ const routes = [
       { path: 'export-history', name: 'export-history', component: ExportHistoryView },
       // The old Export Music address still works.
       { path: 'export', redirect: { name: 'export-history' } },
-      { path: 'account', name: 'account', component: AccountView },
+      // The Account page was removed; its old address goes to the library.
+      { path: 'account', redirect: { name: 'library' } },
     ],
   },
   // Anything unknown goes to the landing page.

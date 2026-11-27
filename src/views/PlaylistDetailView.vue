@@ -5,6 +5,7 @@ One playlist's page: edit, add or remove songs, reorder, export.
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { usePlaylistDetail } from '@/composables/usePlaylistDetail.js'
+import { useLiveRefresh } from '@/composables/useLiveRefresh.js'
 import { useSongPicker } from '@/composables/useSongPicker.js'
 import { useSongSearch } from '@/composables/useSongSearch.js'
 import { useSongSelection } from '@/composables/useSongSelection.js'
@@ -136,6 +137,46 @@ const createdLabel = computed(() => `Created ${formatDay(playlist.value?.created
 // ---- export ----------------------------------------------------------------------
 const exportJob = useExportJob()
 const exportOpen = ref(false)
+
+// Stay in step with other tabs and browsers. The page can switch between
+// playlists without remounting, so each message is checked against the
+// playlist shown right now.
+const dragging = ref(false)
+const currentId = () => route.params.playlistId
+const shownSongIds = () => new Set(songs.value.map((song) => song.song_id))
+useLiveRefresh({
+  name: 'playlist',
+  tables: [
+    // Renamed, or deleted elsewhere (the page then shows "Playlist not found").
+    {
+      table: 'playlists',
+      ownerFilter: true,
+      accept: (p) => (p.new?.playlist_id ?? p.old?.playlist_id) === currentId(),
+    },
+    // Songs added, removed or reordered. Deletes carry no playlist id, so any
+    // delete triggers a quiet reload.
+    {
+      table: 'playlist_songs',
+      accept: (p) => p.eventType === 'DELETE' || p.new?.playlist_id === currentId(),
+    },
+    // A song in this playlist changed (deleting a song also deletes its
+    // playlist_songs row, which is caught above).
+    {
+      table: 'songs',
+      ownerFilter: true,
+      accept: (p) => p.eventType !== 'DELETE' && shownSongIds().has(p.new?.song_id),
+    },
+  ],
+  refresh: () => load({ silent: true }),
+  paused: () =>
+    busy.value ||
+    saving.value ||
+    deleting.value ||
+    editing.value ||
+    confirmDelete.value ||
+    exportOpen.value ||
+    dragging.value,
+})
 
 const exportingThis = computed(
   () =>
@@ -329,6 +370,8 @@ const exportTarget = computed(() =>
           @toggle="toggle"
           @toggle-all="toggleAll"
           @reorder="reorder"
+          @drag-start="dragging = true"
+          @drag-end="dragging = false"
           @move="({ id, step }) => moveSong(id, step)"
           @remove="onRemove([$event])"
         />

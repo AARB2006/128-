@@ -17,7 +17,7 @@ const props = defineProps({
   // False while a search is active or a save is running.
   canMove: { type: Boolean, default: true },
 })
-const emit = defineEmits(['toggle', 'toggle-all', 'reorder', 'move', 'remove'])
+const emit = defineEmits(['toggle', 'toggle-all', 'reorder', 'move', 'remove', 'drag-start', 'drag-end'])
 
 // A local copy that the drag library may reorder. It is refilled whenever the
 // page hands down a new list, which is also how a failed save snaps back.
@@ -51,6 +51,9 @@ const options = computed(() => ({
   delayOnTouchOnly: true,
   touchStartThreshold: 4,
   disabled: !props.canMove,
+  // Tells the page a drag is under way, so it doesn't reload mid-drag.
+  onStart: () => emit('drag-start'),
+  onEnd: () => emit('drag-end'),
   onUpdate: () => emit('reorder', rows.value.map((song) => song.song_id)),
 }))
 

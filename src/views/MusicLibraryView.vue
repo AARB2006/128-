@@ -2,13 +2,16 @@
 Music Library page: browse, search, delete songs and add them to playlists.
 -->
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useMusicLibrary } from '@/composables/useMusicLibrary.js'
 import { useSongSearch } from '@/composables/useSongSearch.js'
 import { useSongSelection } from '@/composables/useSongSelection.js'
+import { usePagination } from '@/composables/usePagination.js'
+import { deleteIsOurs, useLiveRefresh } from '@/composables/useLiveRefresh.js'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import ListCard from '@/components/ui/ListCard.vue'
 import SelectionBar from '@/components/ui/SelectionBar.vue'
+import ListPager from '@/components/ui/ListPager.vue'
 import ListSkeleton from '@/components/ui/ListSkeleton.vue'
 import LibraryStats from '@/components/library/LibraryStats.vue'
 import SongList from '@/components/library/SongList.vue'
@@ -21,6 +24,8 @@ import { plural } from '@/lib/format.js'
 const { songs, loading, error, actionError, deleting, load, remove } =
   useMusicLibrary()
 const { query, results } = useSongSearch(songs)
+// 20 songs per page, over the search results.
+const { page, pageCount, pageItems, firstShown, lastShown, goTo } = usePagination(results)
 const {
   selectedIds,
   count: selectedCount,
@@ -29,7 +34,21 @@ const {
   toggle,
   toggleAll,
   clear,
-} = useSongSelection(results)
+} = useSongSelection(results, 'song_id', pageItems)
+
+// A new search starts from the first page.
+watch(query, () => goTo(1))
+
+// After Previous / Next, bring the top of the table back into view.
+const listTop = ref(null)
+function onPage(n) {
+  goTo(n)
+  const top = listTop.value
+  if (top && top.getBoundingClientRect().top < 0) {
+    const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    top.scrollIntoView({ block: 'start', behavior: smooth ? 'smooth' : 'auto' })
+  }
+}
 
 const confirmOpen = ref(false)
 
@@ -37,6 +56,21 @@ const playlistDialog = useAddToPlaylist()
 const notice = ref('')
 
 onMounted(() => load())
+
+// Stay in step with other tabs and browsers.
+const songIds = () => new Set(songs.value.map((song) => song.song_id))
+useLiveRefresh({
+  name: 'library',
+  tables: [
+    { table: 'songs', ownerFilter: true, accept: (p) => deleteIsOurs(p, 'song_id', songIds) },
+    // The Playlists column: songs added to or removed from playlists...
+    { table: 'playlist_songs' },
+    // ...and renamed playlists (deleting one also removes its playlist_songs).
+    { table: 'playlists', ownerFilter: true, accept: (p) => p.eventType !== 'DELETE' },
+  ],
+  refresh: () => load({ silent: true }),
+  paused: () => confirmOpen.value || deleting.value || playlistDialog.busy.value,
+})
 
 async function onChoosePlaylist(playlistId) {
   // Songs are added in the order the library lists them.
@@ -122,6 +156,8 @@ async function onConfirmDelete() {
     <template v-else>
       <LibraryStats :songs="songs" class="mb-6" />
 
+      <div ref="listTop" class="scroll-mt-4"></div>
+
       <ListCard v-model:query="query" placeholder="Search songs">
         <template #tools>
           <SelectionBar v-if="selectedCount" :count="selectedCount" @clear="clear">
@@ -146,7 +182,7 @@ async function onConfirmDelete() {
         </p>
         <SongList
           v-else
-          :songs="results"
+          :songs="pageItems"
           :selected-ids="selectedIds"
           :all-selected="allSelected"
           :some-selected="someSelected"
@@ -155,8 +191,23 @@ async function onConfirmDelete() {
         />
 
         <template #footer>
-          <span>{{ plural(songs.length, 'song') }}</span>
-          <span>Showing {{ results.length }} of {{ songs.length }}</span>
+          <span class="self-center">{{ plural(songs.length, 'song') }}</span>
+          <span class="flex flex-wrap items-center gap-4">
+            <!-- One page: "Showing 3 of 12". Several: "Showing 21–40 of 312". -->
+            <span v-if="pageCount > 1" class="showing self-center">
+              Showing {{ firstShown }}–{{ lastShown }} of {{ results.length }}
+            </span>
+            <span v-else class="showing self-center">
+              Showing {{ results.length }} of {{ songs.length }}
+            </span>
+            <ListPager
+              v-if="pageCount > 1"
+              :page="page"
+              :page-count="pageCount"
+              label="Song pages"
+              @go="onPage"
+            />
+          </span>
         </template>
       </ListCard>
     </template>

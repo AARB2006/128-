@@ -9,6 +9,7 @@ import AppSidebar from './AppSidebar.vue'
 import SidebarIcon from './SidebarIcon.vue'
 import logoUrl from '@/assets/brand/ytmp3-logo.svg'
 import ExportProgressToast from '@/components/export/ExportProgressToast.vue'
+import SignOutOverlay from './SignOutOverlay.vue'
 import { useExportJob } from '@/composables/useExportJob.js'
 import '@/assets/app.css'
 
@@ -72,6 +73,9 @@ onBeforeUnmount(() => {
     </main>
 
     <ExportProgressToast />
+
+    <!-- "Logging you out…", shown above everything while signing out. -->
+    <SignOutOverlay />
   </div>
 </template>
 

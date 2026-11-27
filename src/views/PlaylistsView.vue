@@ -6,6 +6,7 @@ import { onMounted, ref, computed } from 'vue'
 import { usePlaylists } from '@/composables/usePlaylists.js'
 import { useSongSearch } from '@/composables/useSongSearch.js'
 import { useSongSelection } from '@/composables/useSongSelection.js'
+import { deleteIsOurs, exportChangeMatters, useLiveRefresh } from '@/composables/useLiveRefresh.js'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import ListCard from '@/components/ui/ListCard.vue'
 import SelectionBar from '@/components/ui/SelectionBar.vue'
@@ -38,6 +39,19 @@ const singleName = computed(() =>
 )
 
 onMounted(() => load())
+
+// Stay in step with other tabs and browsers.
+const playlistIds = () => new Set(playlists.value.map((p) => p.playlist_id))
+useLiveRefresh({
+  name: 'playlists',
+  tables: [
+    { table: 'playlists', ownerFilter: true, accept: (p) => deleteIsOurs(p, 'playlist_id', playlistIds) },
+    { table: 'playlist_songs' }, // song counts and lengths
+    { table: 'exports', ownerFilter: true, accept: exportChangeMatters }, // Last exported
+  ],
+  refresh: () => load({ silent: true }),
+  paused: () => confirmOpen.value || deleting.value || Boolean(exportTarget.value),
+})
 
 async function onConfirmDelete() {
   const ok = await remove([...selectedIds.value])

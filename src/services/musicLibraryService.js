@@ -8,16 +8,29 @@ import { supabase } from '@/lib/supabase.js'
 // and the row-level-security policies on `songs` decide which rows are visible
 // or deletable.
 
-export async function getSongs() {
-  const { data, error } = await supabase
-    .from('songs')
-    .select(
-      'song_id, title, source_url, video_id, duration_seconds, date_added, ' +
-        'playlist_songs(playlists(playlist_id, name))',
-    )
-    .order('date_added', { ascending: false })
+// Supabase returns at most 1,000 rows per request by default, so the library
+// is read in batches of this size until a batch comes back short.
+const BATCH_SIZE = 1000
 
-  if (error) throw error
+export async function getSongs() {
+  const data = []
+
+  for (let from = 0; ; from += BATCH_SIZE) {
+    const { data: batch, error } = await supabase
+      .from('songs')
+      .select(
+        'song_id, title, source_url, video_id, duration_seconds, date_added, ' +
+          'playlist_songs(playlists(playlist_id, name))',
+      )
+      // song_id breaks ties, so no song is skipped or repeated between batches.
+      .order('date_added', { ascending: false })
+      .order('song_id', { ascending: true })
+      .range(from, from + BATCH_SIZE - 1)
+
+    if (error) throw error
+    data.push(...batch)
+    if (batch.length < BATCH_SIZE) break
+  }
 
   // Each song gets a `playlists` list of { playlist_id, name }, A to Z.
   return data.map(({ playlist_songs, ...song }) => ({

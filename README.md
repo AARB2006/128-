@@ -2,7 +2,7 @@
 
 A web app for building a personal music library from YouTube links. Each family member signs in with Google, imports up to ten YouTube links at a time, manages their own songs, arranges them into playlists, and exports a playlist as a ZIP of numbered MP3s.
 
-> **Status:** Milestone 4 (Export). Playlists can be exported as MP3 ZIP files, with an Export History page.
+> **Status:** Milestone 4 (Export), plus a UI refresh: dark theme, account menu, skeleton loading, library paging, and pages that stay in step across tabs and browsers. Next: cleanup, a security review and deployment.
 > **Version:** 0.4.0
 
 ---
@@ -31,7 +31,7 @@ A web app for building a personal music library from YouTube links. Each family 
 
 YT-MP3 is split into three parts:
 
-- **Vue frontend:** the signed-in app (sidebar, Music Library, Import Music, Playlists, Export History, Account) and the landing page with Google sign-in.
+- **Vue frontend:** the signed-in app (sidebar, Music Library, Import Music, Playlists, Export History) and the landing page with Google sign-in.
 - **Supabase:** Google sign-in, the Postgres database, and row-level security (RLS) that keeps each user's data separate.
 - **FastAPI backend:** checks links, reads video metadata with yt-dlp, writes songs to the database, and builds export ZIPs (yt-dlp + FFmpeg). It's the only part that can write songs and export records, because it holds the secret key.
 
@@ -45,10 +45,14 @@ Each user has a private library. If two users import the same YouTube video, eac
 
 ### Current
 
+- **Landing page:** a violet panel introducing Import, Playlists and Export, and a **Continue with Google** button. The background shapes drift slowly and the cards lift on hover; all motion stops when the system's "reduce motion" setting is on.
 - **Google sign-in** through Supabase Auth. Each new account gets a profile automatically.
 - **Music Library:** lists your songs, newest first, with:
+  - Four summary cards at the top: songs, playlists using them, total length, and the last day you added songs.
+  - Each song's YouTube thumbnail, title, link, length, playlists and date added.
+  - 20 songs per page, with **Previous** / **Next** and "Showing 21–40 of 312" in the footer. A new search starts from page 1, and the stat cards always count the whole library.
   - Live search by title or link.
-  - Select one, several, or all songs.
+  - Select one, several, or all songs. Ticks stay when you change page; the header checkbox ticks or unticks the current page.
   - Delete with a confirmation dialog. Deleting a song also removes it from your own playlists.
   - A **Playlists** column showing how many playlists each song is in. Click it for a popup listing those playlists, each linking to its page.
   - **Add to Playlist:** pick one of your playlists (shown with their song counts) for the selected songs. Songs are added in library order, songs already in that playlist are skipped, and a message says how many were added. If you have no playlists yet, the popup links to Add Playlist.
@@ -64,13 +68,14 @@ Each user has a private library. If two users import the same YouTube video, eac
   - Daily quota per user (default 100 links per rolling 24 hours), set by `DAILY_IMPORT_LIMIT`.
   - Only one import can run at a time per user.
 - **Playlists page:**
-  - Lists your playlists, newest first, with the name, description, date created and number of songs.
+  - Lists your playlists, newest first, with the name, description, number of songs, total length, date created and when it was last exported.
   - Live search by playlist name or description.
   - Select one, several, or all playlists and delete them after a confirmation (which names the playlist when only one is selected). The songs stay in your library.
   - Each row has a ⋮ menu with **Edit playlist**, which opens the playlist, and **Export playlist**, which opens the export popup.
   - An empty state when you have no playlists.
 - **Add Playlist page:** give the playlist a name (required, up to 100 characters) and an optional description (up to 500 characters, with a live counter). After saving you go straight to the new playlist so you can add songs.
 - **Playlist page** (open a playlist from the list):
+  - Labels under the name show the number of songs, the total length and the date created.
   - Click the name or description to edit them in a popup. Nothing is saved until you press **Save**.
   - **Add Song** opens a searchable picker with the library songs that aren't in the playlist yet, including a "Select all" box. New songs go to the end, in the order they're listed.
   - Songs are numbered in playlist order. Reorder them by dragging a row (on touch screens, press briefly first), or with **Move up** / **Move down** in the row's ⋮ menu. The new order saves automatically; if saving fails, the list goes back to the last saved order.
@@ -79,8 +84,10 @@ Each user has a private library. If two users import the same YouTube video, eac
   - **Delete Playlist** with a confirmation.
   - **Export Playlist** opens the export popup (disabled for an empty playlist, or while another export is running).
   - A "Playlist not found" page for deleted playlists or wrong links.
-- **Account:** shows your name and email from your profile. In development mode it also shows a data-separation check that should report exactly 1 visible profile.
-- **Sidebar:** can be collapsed to icons on desktop, and becomes a slide-out menu on small screens.
+- **Sidebar:** can be collapsed to icons on desktop, and becomes a slide-out menu on small screens. Your name and email at the bottom open a menu with **Log out**. The menu opens to the side when the sidebar is collapsed.
+- **Logging out** shows "Logging you out…" for about a second. Supabase removes the session from the browser and revokes it on its server, then the app reloads on the landing page, so nothing from your account stays in memory and Back can't return to the app. If the session can't be removed, the app says so and you stay signed in.
+- **Loading:** pages show grey placeholder shapes in the layout of the content (skeleton screens) instead of "Loading…".
+- **Stays in step across tabs and browsers:** Music Library, Playlists, a playlist page and Export History update on their own when the same account changes something elsewhere. Supabase Realtime sends the change live, and the page quietly reloads its data about a second later. When a tab is shown again or its window gets focus, it also reloads, to catch anything missed while the connection was down. Reloads wait while a dialog is open, a save is running or a song is being dragged. This needs Realtime turned on for `songs`, `playlists`, `playlist_songs` and `exports` (see [Create the database](#84-create-the-database)).
 
 - **Export Playlist:**
   - Choose **Export Playlist** on a playlist page or in a playlist's ⋮ menu, check the details, and start. Format is a ZIP of MP3s, numbered in playlist order.
@@ -89,7 +96,9 @@ Each user has a private library. If two users import the same YouTube video, eac
   - Limits (all configurable): up to `MAX_EXPORT_SONGS` songs per export (default 100), `DAILY_EXPORT_SONG_LIMIT` songs per rolling 24 hours (default 300), and one running export per user.
   - Missing FFmpeg, too little free disk space and a full disk are reported with a clear message.
   - Finished ZIPs stay downloadable for `EXPORT_FILE_TTL_MINUTES` (default 60), then are deleted. Temporary audio is always deleted.
-- **Export History:** lists recent exports that produced a file, with the playlist name, date and song count (for example "8 of 10" when some songs were skipped).
+- **Export History:** lists recent exports that produced a file, newest first, with the playlist name, date, song count (for example "8 of 10 · 2 skipped") and whether the ZIP is still available ("Ready until" a time, or "Expired").
+  - Search by playlist name.
+  - Each row has a **Download** button while the file is available. After it expires, the button becomes **Export again** if the playlist still exists.
   - Expand a row to see its songs and why any were skipped.
   - ⋮ menu: **Download** (until the file expires), **Export again**, and **Delete**.
   - **Delete History** removes every finished export. Deleting also removes the ZIP. A running export is never deleted.
@@ -145,6 +154,17 @@ Playlists don't go through the backend. The browser reads and writes them direct
 - On the playlist page, every change to the song list (add, remove, reorder) goes through one queue, so a slow request can never overtake a newer one.
 - If a save fails because the playlist was changed somewhere else, the page reloads it and says so.
 
+### Keeping pages in step
+
+Music Library, Playlists, a playlist page and Export History load their data once, then keep it current in two ways (`useLiveRefresh.js`):
+
+- **Live:** each page subscribes to Supabase Realtime for the tables it shows. When one changes, the page reloads its data about 0.4 seconds later; a burst of changes causes one reload. Export progress updates are ignored, so only a new, finished or deleted export counts.
+- **Catch-up:** when a tab is shown again, its window gets focus, or the live connection comes back, the page reloads. This covers changes missed while a laptop slept or the connection dropped.
+
+Reloads are quiet: no loading placeholders, ticks are kept, and the library stays on the same page. They wait while a dialog is open, a save or delete is running, or a song is being dragged, and a hidden tab waits until it's shown.
+
+Import and export progress still come from polling once a second (see above).
+
 ---
 
 ## 4. Technology Stack
@@ -158,6 +178,8 @@ Styling uses Tailwind CSS, with no component library. Notes for contributors:
 - The shared `app-*` classes (`app-btn`, `app-alert`, `app-card`, `app-page`, and so on) are kept as Tailwind component classes for buttons, alerts, cards and page titles.
 - Tailwind's base reset (Preflight) is not enabled yet, so element defaults such as list bullets and heading margins still come from `style.css` and the browser.
 - Class names are written out in full in the source, because Tailwind only generates classes it can find as complete strings.
+- Animations change only `transform`, `translate`, `scale`, `rotate` or `opacity`, use CSS rather than JavaScript timers, and have `motion-reduce:` variants that stop the movement. In Tailwind v4, `translate-*` and `scale-*` set the separate `translate` and `scale` properties, so list those in `transition-[…]` or use `transition-transform`.
+- Screen-size variants are `phone:` (up to 640px), `mobile:` (up to 768px) and `desktop:` (769px and up), defined in `app.css`.
 
 | Technology | Purpose |
 |---|---|
@@ -189,6 +211,7 @@ Styling uses Tailwind CSS, with no component library. Notes for contributors:
 |---|---|
 | Supabase Postgres | Database |
 | Supabase Auth (Google OAuth) | Sign-in |
+| Supabase Realtime | Tells open pages when their data changed elsewhere |
 | Row-level security | Keeps each user's rows private |
 
 ### Testing
@@ -236,12 +259,17 @@ Styling uses Tailwind CSS, with no component library. Notes for contributors:
 │   ├── main.js                     App entry point
 │   ├── App.vue                     Root component (redirects on sign-out)
 │   ├── router/index.js             Routes and the sign-in guard
-│   ├── lib/supabase.js             Supabase client
+│   ├── lib/
+│   │   ├── supabase.js             Supabase client
+│   │   └── format.js               Dates, durations, links and "3 songs"-style counts
 │   ├── composables/
 │   │   ├── useAuth.js              Session state and sign-in/out
+│   │   ├── useSignOut.js           Log out with a short delay, then reload on the landing page
 │   │   ├── useMusicLibrary.js      Loads and deletes songs
 │   │   ├── useSongSearch.js        Debounced search
+│   │   ├── useLiveRefresh.js       Live updates plus reload-on-return, shared by the list pages
 │   │   ├── useSongSelection.js     Row selection
+│   │   ├── usePagination.js        Splits a loaded list into pages of 20
 │   │   ├── useImport.js            Import state and progress polling
 │   │   ├── usePlaylists.js         Loads and deletes playlists
 │   │   ├── usePlaylistDetail.js    One playlist: edit, add, remove, reorder
@@ -256,12 +284,13 @@ Styling uses Tailwind CSS, with no component library. Notes for contributors:
 │   │   ├── exportService.js        Export calls, history, download, delete
 │   │   └── apiError.js             Error type for backend calls
 │   ├── components/
-│   │   ├── layout/                 Sidebar, app shell, placeholder page
-│   │   ├── library/                Toolbar, song table, delete dialog
+│   │   ├── layout/                 Sidebar, account menu, app shell, log-out overlay
+│   │   ├── library/                Summary cards, song table, empty state, delete dialog
 │   │   ├── import/                 Links box, progress bar, results
 │   │   ├── playlists/              Playlist table, song list, dialogs
 │   │   ├── export/                 Export popup, progress card, delete dialog
-│   │   └── ui/                     Shared dialog, page toolbar, row menu
+│   │   └── ui/                     Shared dialog, page header, list card, selection bar, row menu,
+│   │                               song thumbnail, progress bar, loading skeleton, pager
 │   ├── views/
 │   │   ├── LandingView.vue         Sign-in page
 │   │   ├── MusicLibraryView.vue
@@ -270,18 +299,18 @@ Styling uses Tailwind CSS, with no component library. Notes for contributors:
 │   │   ├── PlaylistNewView.vue     Add Playlist form
 │   │   ├── PlaylistDetailView.vue  One playlist and its songs
 │   │   ├── ExportHistoryView.vue   Past exports, download, delete
-│   │   ├── AccountView.vue
 │   │   └── PocView.vue             Legacy, dev only, not working with the new backend
 │   ├── assets/
-│   │   └── app.css                 Tailwind setup, colour tokens and shared app-* classes
-│   └── style.css                   Global base styles (font, landing page button)
+│   │   ├── app.css                 Tailwind setup, colour tokens, animations and shared app-* classes
+│   │   └── brand/                  Logo, icon and the Google "G"
+│   └── style.css                   Global base styles (font, page defaults, the POC's buttons)
 │
 ├── package.json
 ├── vite.config.js
 └── README.md
 ```
 
-Legacy files from the proof of concept are still in the repo but aren't used by the app: `src/api/`, `src/composables/useLinks.js`, `src/services/useImport.js` (an old copy of `composables/useImport.js`), the POC components directly under `src/components/` (`ImportButton.vue`, `PlaylistHistory.vue`, and so on), `src/components/icons/`, and `backend/test_connection.py`. They're scheduled for removal.
+Legacy files from the proof of concept are still in the repo but aren't used by the app: `src/api/`, `src/composables/useLinks.js`, `src/services/useImport.js` (an old copy of `composables/useImport.js`), the POC components directly under `src/components/` (`ImportButton.vue`, `PlaylistHistory.vue`, and so on), `src/components/icons/`, `src/components/layout/PlaceholderPage.vue`, the Vue starter files `src/assets/main.css`, `src/assets/base.css` and `src/assets/logo.svg`, and `backend/test_connection.py`. They're scheduled for removal.
 
 ---
 
@@ -371,6 +400,14 @@ cd 128-
 
 1. In Supabase, open **SQL Editor**, paste the whole contents of `database/schema.sql`, and run it.
 2. Run it once on a new project. If you get an error saying a trigger or table already exists, the schema is already there.
+3. Turn on live updates, so open tabs and browsers stay in step. Run this once in the SQL Editor:
+
+   ```sql
+   alter publication supabase_realtime add table
+     public.songs, public.playlists, public.playlist_songs, public.exports;
+   ```
+
+   If it says a table is already a member of the publication, live updates are already on for it. Row-level security still applies, so each user only receives their own new and changed rows.
 
 ### 8.5 Configure the frontend
 
@@ -467,7 +504,7 @@ Press `Ctrl + C` in either terminal to stop it.
 ## 10. Using the Application
 
 1. **Sign in:** click **Continue with Google**. Your profile is created on first sign-in.
-2. **Music Library:** your songs appear here. Use the search box to filter, tick songs to select them, and click **Delete Music** to remove them (after a confirmation).
+2. **Music Library:** your songs appear here, with totals at the top. Use **Previous** / **Next** at the bottom to move between pages of 20 and the search box to filter. Tick songs, then click **Delete** to remove them (after a confirmation).
 3. **Import Music:** click **Import Music**, paste up to 10 YouTube links (one per line), and click **Import**.
    - The bar shows progress. When it finishes, the summary shows what was added and what failed.
    - Failed links stay in the box. Fix them and import again.
@@ -481,8 +518,7 @@ Press `Ctrl + C` in either terminal to stop it.
    - Tick songs and click **Remove Songs** (or use **Delete song** in a row's ⋮ menu) to take them out of the playlist, or click **Delete Playlist** to delete the whole playlist. Your library isn't affected either way.
 6. **Export a playlist:** open a playlist (or use its ⋮ menu in the list), click **Export Playlist**, and confirm. Watch the progress card, then click **Download** when it's ready.
 7. **Export History:** download a recent export again, export the playlist again, or delete exports (one at a time or with **Delete History**).
-8. **Account:** shows your name and email.
-9. **Log Out:** at the bottom of the sidebar.
+8. **Log out:** click your name and email at the bottom of the sidebar, then choose **Log out**.
 
 On a phone, use the menu button at the top to open the sidebar.
 
@@ -595,7 +631,9 @@ This checks that the app compiles. There are no automated frontend tests yet, so
 - **No reordering during search:** drag and Move up/down are turned off while the playlist search box has text.
 - **Imports need the backend running on your machine.** There's no hosted backend yet.
 - **Only one backend process is supported.** Background imports and exports, download links and the restart cleanup all assume a single process.
-- **Library size:** Supabase returns at most 1,000 rows per request by default. Pagination is needed before a library gets that big.
+- **Library size:** the whole library is loaded into the browser (1,000 songs per request) and paged there, so search, the summary cards and Add to Playlist see every song. A very large library takes longer to open.
+- **Live updates need Realtime turned on** (section 8.4, step 3). Without it, pages still catch up when you return to the tab, but don't update by themselves.
+- **Delete notices reach every signed-in user.** Supabase can't check who owned a deleted row, so it sends the deleted row's ID (a random ID, no titles or names) to everyone watching that table. Pages ignore IDs they aren't showing, except removals from a playlist, which cause a quiet reload.
 - **Daily quotas:** `DAILY_IMPORT_LIMIT` and `DAILY_EXPORT_SONG_LIMIT` are placeholder values. Set them to what you want.
 - **Google consent screen:** check its publishing status in Google Cloud before sharing the app with family.
 - **Legacy files:** the POC files listed in section 5 are still in the repo and aren't used.
@@ -608,7 +646,7 @@ This checks that the app compiles. There are no automated frontend tests yet, so
 1. ~~**Playlists:** create playlists, add songs, reorder, rename and delete.~~ Done in Milestone 3.
 2. ~~**Export:** download a playlist as a ZIP of numbered MP3s, with an Export History page.~~ Done in Milestone 4.
 3. **Cleanup:** delete the legacy POC files and the `/poc` route.
-4. **Live progress:** replace polling with Supabase Realtime.
+4. **Live progress:** show import and export progress through Supabase Realtime instead of polling every second. (Pages already use Realtime to stay in step.)
 5. **Faster token checks:** verify login tokens locally with the project's public keys, instead of calling Supabase on each request.
 6. **Frontend tests:** automated tests for the playlist and library pages.
 7. **Deployment:** choose a backend host that can run yt-dlp and FFmpeg, and set the production URL in Supabase.

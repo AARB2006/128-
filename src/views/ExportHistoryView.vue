@@ -18,6 +18,7 @@ import ListSkeleton from '@/components/ui/ListSkeleton.vue'
 import { plural } from '@/lib/format.js'
 import ExportPlaylistDialog from '@/components/export/ExportPlaylistDialog.vue'
 import DeleteExportsDialog from '@/components/export/DeleteExportsDialog.vue'
+import { deleteIsOurs, exportChangeMatters, useLiveRefresh } from '@/composables/useLiveRefresh.js'
 
 // Recent exports that produced a file (completed, or with some songs skipped).
 const exportsList = ref([])
@@ -42,6 +43,7 @@ async function load({ silent = false } = {}) {
 }
 
 onMounted(() => load())
+
 
 // Reload when an export finishes while this page is open.
 watch(finishedCount, () => load({ silent: true }))
@@ -176,6 +178,24 @@ function mainAction(row) {
   if (row.playlist && !busy.value) return { key: 'again', label: 'Export again' }
   return null
 }
+
+// Stay in step with other tabs and browsers. Kept at the end: it reads
+// `deleting` and `deleteTarget`, declared above.
+const exportIds = () => new Set(exportsList.value.map((row) => row.export_id))
+useLiveRefresh({
+  name: 'history',
+  tables: [
+    {
+      table: 'exports',
+      ownerFilter: true,
+      accept: (p) => exportChangeMatters(p) && deleteIsOurs(p, 'export_id', exportIds),
+    },
+    // Playlist names shown in each row.
+    { table: 'playlists', ownerFilter: true, accept: (p) => p.eventType !== 'DELETE' },
+  ],
+  refresh: () => load({ silent: true }),
+  paused: () => deleting.value || deleteTarget.value !== null,
+})
 </script>
 
 <template>

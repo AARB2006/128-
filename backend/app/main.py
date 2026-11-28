@@ -16,6 +16,7 @@ from . import config
 from .auth import get_current_user_id
 from .errors import api_error
 from .exports import service as exports
+from .frontend import mount_frontend
 from .importer import ImportRejected, prepare_import, run_import
 from .schemas import (
     DownloadLink,
@@ -221,3 +222,11 @@ def clear_export_history(
         api_error(503, "Could not reach the database. Please try again.")
 
     return {"deleted": deleted}
+
+
+# ---- The app itself (installed mode) ------------------------------------------
+
+# Added last, so every API route above is matched first.
+if config.FRONTEND_DIST_DIR:
+    served_from = mount_frontend(app, config.FRONTEND_DIST_DIR)
+    logger.info("Serving the app from %s", served_from)

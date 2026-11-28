@@ -84,5 +84,13 @@ ALLOWED_ORIGINS = [
 ]
 
 
+# ---- Installed app ----------------------------------------------------------
+
+# Folder with the built frontend (`npm run build` makes `dist/`). When set, the
+# backend also serves the app itself, so the whole system runs from one address
+# (http://localhost:8000). The Windows start script sets it; leave it unset in
+# development, where `npm run dev` serves the frontend on port 5173.
+FRONTEND_DIST_DIR = os.getenv("FRONTEND_DIST_DIR", "").strip()
+
 def supabase_is_configured() -> bool:
     return bool(SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY and SUPABASE_SECRET_KEY)

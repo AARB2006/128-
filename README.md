@@ -2,7 +2,7 @@
 
 A web app for building a personal music library from YouTube links. Each family member signs in with Google, imports up to ten YouTube links at a time, manages their own songs, arranges them into playlists, and exports a playlist as a ZIP of numbered MP3s.
 
-> **Status:** Milestone 4 (Export), plus a UI refresh: dark theme, account menu, skeleton loading, library paging, and pages that stay in step across tabs and browsers. Cleanup and security review done. Next: local deployment (an install guide and a start script for each family computer).
+> **Status:** Milestone 4 (Export), plus a UI refresh: dark theme, account menu, skeleton loading, library paging, and pages that stay in step across tabs and browsers. Cleanup and security review done. Runs as an installed app on Windows family computers: see [INSTALL.md](INSTALL.md).
 > **Version:** 0.4.0
 
 ---
@@ -227,6 +227,11 @@ Styling uses Tailwind CSS, with no component library. Notes for contributors:
 
 ```text
 128-/
+├── Setup YT-MP3.bat                Windows: one-time setup (runs scripts/windows/setup.ps1)
+├── Start YT-MP3.bat                Windows: starts the app (runs scripts/windows/start.ps1)
+├── INSTALL.md                      How to install YT-MP3 on a family computer
+├── scripts/windows/                Setup and start scripts (PowerShell)
+│
 ├── database/
 │   └── schema.sql                  Full database schema, RLS, triggers and Realtime
 │
@@ -243,6 +248,7 @@ Styling uses Tailwind CSS, with no component library. Notes for contributors:
 │   │   ├── metadata.py             yt-dlp metadata checks (carried over from the POC)
 │   │   ├── ytdlp_opts.py           yt-dlp options (carried over from the POC)
 │   │   ├── names.py                Safe file names (used by export)
+│   │   ├── frontend.py             Serves the built app from the same address (installed app)
 │   │   └── exports/                Playlist export
 │   │       ├── service.py          Runs an export job, limits, download links, delete
 │   │       ├── audio.py            Song -> MP3 (yt-dlp + FFmpeg)
@@ -385,9 +391,10 @@ cd 128-
 
 1. **Google Cloud Console:** under **APIs & Services → Credentials**, create an **OAuth client ID** of type **Web application**. Under **Authorized redirect URIs**, add the callback URL shown on Supabase's Google provider page. It looks like `https://YOUR-PROJECT-REF.supabase.co/auth/v1/callback`.
 2. **Supabase:** go to **Authentication → Providers → Google**, turn it on, and paste the Google **Client ID** and **Client secret**. Save.
-3. **Supabase:** go to **Authentication → URL Configuration → Redirect URLs** and add:
+3. **Supabase:** go to **Authentication → URL Configuration → Redirect URLs** and add both addresses: the first for development, the second for the installed app.
    ```text
    http://localhost:5173/**
+   http://localhost:8000/**
    ```
    If you open the app at another address or port, add that address too.
 
@@ -468,14 +475,17 @@ Important:
 - The backend reads `.env` only when it starts. Restart it after any change.
 - **On each family computer,** `backend/.env` holds a copy of the secret key. Copy the file over in person (for example with a USB drive), not by chat or email, and don't share the folder.
 - **If a computer is lost or compromised,** create a new secret key in Supabase (**Settings → API Keys**), delete the old one, and update `backend/.env` on every computer.
-- Keep the backend on `--host 127.0.0.1` (section 9). That makes it reachable only from the same computer, not from other devices on the network.
+- Keep the backend on `--host 127.0.0.1` (section 9; the Windows start script does this). That makes it reachable only from the same computer, not from other devices on the network.
+- `FRONTEND_DIST_DIR` (optional): a folder with the built frontend (`dist`). When set, the backend also serves the app, so everything runs from one address. The Windows start script sets it; leave it unset in development.
 - `requirements.txt` pins exact versions, except yt-dlp, which has a minimum. Update yt-dlp regularly with `python -m pip install -U "yt-dlp[default]"`, because YouTube changes often.
 
 ---
 
 ## 9. Running the Application
 
-Run the backend and frontend in two separate terminals.
+**On a family computer,** use the installed app instead: see [INSTALL.md](INSTALL.md). Setup installs everything; the **YT-MP3** desktop shortcut starts it.
+
+For development, run the backend and frontend in two separate terminals.
 
 ### Terminal 1: backend
 
@@ -498,6 +508,22 @@ npm run dev
 Open <http://localhost:5173> in your browser. Use `localhost` or `127.0.0.1` exactly as shown, because the backend only accepts those origins by default.
 
 Press `Ctrl + C` in either terminal to stop it.
+
+### Like the installed app (one address)
+
+To check the production build the way family computers run it, build with the same-address setting and let the backend serve it (Windows `cmd`):
+
+```cmd
+set VITE_API_BASE_URL=/
+npm run build
+set VITE_API_BASE_URL=
+cd backend
+.venv\Scripts\activate
+set FRONTEND_DIST_DIR=..\dist
+uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+Then open <http://localhost:8000>. `VITE_API_BASE_URL=/` makes the app call the address it was opened from, so no CORS setting is involved.
 
 ---
 
@@ -607,6 +633,7 @@ The suite covers:
 - Export rules: limits, ownership, skipped songs, ZIP verification, cleanup of temporary files, download links, cancel, and deleting history.
 - Export file names, including song titles that contain `%`.
 - The URL validator from the POC, and that Shorts links are imported like any other video.
+- The installed app: the backend serves the built app without hiding any API route, and no request (including `../` tricks) can read a file outside `dist`.
 
 These tests use fake Supabase and yt-dlp stand-ins, so they run without internet access.
 
@@ -628,7 +655,9 @@ This checks that the app compiles. There are no automated frontend tests yet, so
 - **Deleting export history resets the daily export count,** because that count comes from the same rows.
 - **Removing songs from a playlist has no undo or confirmation.** The songs stay in the library, so they can be added back.
 - **No reordering during search:** drag and Move up/down are turned off while the playlist search box has text.
-- **Runs locally, by design.** Each family computer runs its own frontend and backend; there's no online server. Online hosting was dropped because YouTube often blocks downloads from cloud servers (see section 14).
+- **Runs locally, by design.** Each family computer runs YT-MP3 itself; there's no online server. Online hosting was dropped because YouTube often blocks downloads from cloud servers (see section 14).
+- **The installer is for Windows only.** On macOS or Linux, follow sections 8 and 9 by hand.
+- **The app runs while its window is open.** Closing the YT-MP3 window stops it, including any export in progress.
 - **Only one backend process is supported.** Background imports and exports, download links and the restart cleanup all assume a single process.
 - **Library size:** the whole library is loaded into the browser (1,000 songs per request) and paged there, so search, the summary cards and Add to Playlist see every song. A very large library takes longer to open.
 - **Live updates need Realtime turned on** (section 8.4, step 3). Without it, pages still catch up when you return to the tab, but don't update by themselves.
@@ -646,7 +675,7 @@ This checks that the app compiles. There are no automated frontend tests yet, so
 4. **Live progress:** show import and export progress through Supabase Realtime instead of polling every second. (Pages already use Realtime to stay in step.)
 5. **Faster token checks:** verify login tokens locally with the project's public keys, instead of calling Supabase on each request.
 6. **Frontend tests:** automated tests for the playlist and library pages.
-7. **Local deployment:** an install guide and a start script for each family computer (updates yt-dlp, starts the backend and frontend, and opens the browser). Online hosting was dropped: YouTube often blocks downloads from cloud servers, and a host that can run FFmpeg would add a monthly cost.
+7. ~~**Local deployment:** an install guide and setup and start scripts for each family computer.~~ Done: see [INSTALL.md](INSTALL.md). Online hosting was dropped: YouTube often blocks downloads from cloud servers, and a host that can run FFmpeg would add a monthly cost.
 
 ---
 

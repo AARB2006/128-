@@ -7,6 +7,7 @@ import os
 import uuid
 import zipfile
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -620,3 +621,37 @@ def test_delete_over_http(client):
     client.post("/exports", json={"playlist_id": PLAYLIST})
     assert client.delete("/exports").json() == {"deleted": 1}
     assert client.store.exports == {}
+
+
+# ---- file names with "%" -------------------------------------------------------
+
+@pytest.mark.parametrize("title", ["100% Pure Love", "%(uploader)s", "50%%off"])
+def test_percent_signs_in_titles_are_kept_literally(tmp_path, monkeypatch, title):
+    """yt-dlp would expand "%(uploader)s" in the output name; it must not."""
+    real_youtube_dl = audio.yt_dlp.YoutubeDL
+
+    class FakeYoutubeDL:
+        def __init__(self, options):
+            self.options = options
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def download(self, urls):
+            # Work out the file name exactly as yt-dlp would, then "convert" it.
+            info = {"id": "aaaaaaaaaaa", "ext": "webm", "title": "x", "uploader": "Uploader"}
+            name = real_youtube_dl({"quiet": True}).prepare_filename(
+                info, outtmpl=self.options["outtmpl"]
+            )
+            Path(name).with_suffix(".mp3").write_bytes(b"mp3")
+
+    monkeypatch.setattr(audio.yt_dlp, "YoutubeDL", FakeYoutubeDL)
+
+    stem = f"01 - {title}"
+    path = audio.download_mp3("aaaaaaaaaaa", tmp_path, stem)
+
+    assert path == tmp_path / f"{stem}.mp3"
+    assert path.is_file()

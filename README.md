@@ -2,7 +2,7 @@
 
 A web app for building a personal music library from YouTube links. Each family member signs in with Google, imports up to ten YouTube links at a time, manages their own songs, arranges them into playlists, and exports a playlist as a ZIP of numbered MP3s.
 
-> **Status:** Milestone 4 (Export), plus a UI refresh: dark theme, account menu, skeleton loading, library paging, and pages that stay in step across tabs and browsers. Next: cleanup, a security review and deployment.
+> **Status:** Milestone 4 (Export), plus a UI refresh: dark theme, account menu, skeleton loading, library paging, and pages that stay in step across tabs and browsers. Cleanup and security review done. Next: local deployment (an install guide and a start script for each family computer).
 > **Version:** 0.4.0
 
 ---
@@ -228,7 +228,7 @@ Styling uses Tailwind CSS, with no component library. Notes for contributors:
 ```text
 128-/
 ├── database/
-│   └── schema.sql                  Full database schema, RLS and triggers
+│   └── schema.sql                  Full database schema, RLS, triggers and Realtime
 │
 ├── backend/
 │   ├── app/
@@ -243,14 +243,11 @@ Styling uses Tailwind CSS, with no component library. Notes for contributors:
 │   │   ├── metadata.py             yt-dlp metadata checks (carried over from the POC)
 │   │   ├── ytdlp_opts.py           yt-dlp options (carried over from the POC)
 │   │   ├── names.py                Safe file names (used by export)
-│   │   ├── exporter.py             Original POC exporter (kept for reference, not used)
-│   │   ├── exports/                Playlist export
-│   │   │   ├── service.py          Runs an export job, limits, download links, delete
-│   │   │   ├── audio.py            Song -> MP3 (yt-dlp + FFmpeg)
-│   │   │   ├── packager.py         MP3s -> verified ZIP
-│   │   │   └── workspace.py        Temporary folders and expiry sweeper
-│   │   ├── database.py             Legacy MySQL code, not used
-│   │   └── models.py               Legacy MySQL models, not used
+│   │   └── exports/                Playlist export
+│   │       ├── service.py          Runs an export job, limits, download links, delete
+│   │       ├── audio.py            Song -> MP3 (yt-dlp + FFmpeg)
+│   │       ├── packager.py         MP3s -> verified ZIP
+│   │       └── workspace.py        Temporary folders and expiry sweeper
 │   ├── tests/                      pytest suite
 │   ├── .env.example                Template for backend/.env
 │   └── requirements.txt
@@ -298,19 +295,17 @@ Styling uses Tailwind CSS, with no component library. Notes for contributors:
 │   │   ├── PlaylistsView.vue       List of playlists
 │   │   ├── PlaylistNewView.vue     Add Playlist form
 │   │   ├── PlaylistDetailView.vue  One playlist and its songs
-│   │   ├── ExportHistoryView.vue   Past exports, download, delete
-│   │   └── PocView.vue             Legacy, dev only, not working with the new backend
+│   │   └── ExportHistoryView.vue   Past exports, download, delete
 │   ├── assets/
 │   │   ├── app.css                 Tailwind setup, colour tokens, animations and shared app-* classes
 │   │   └── brand/                  Logo, icon and the Google "G"
-│   └── style.css                   Global base styles (font, page defaults, the POC's buttons)
+│   └── style.css                   Global base styles (dark page background, font defaults)
 │
 ├── package.json
 ├── vite.config.js
 └── README.md
 ```
 
-Legacy files from the proof of concept are still in the repo but aren't used by the app: `src/api/`, `src/composables/useLinks.js`, `src/services/useImport.js` (an old copy of `composables/useImport.js`), the POC components directly under `src/components/` (`ImportButton.vue`, `PlaylistHistory.vue`, and so on), `src/components/icons/`, `src/components/layout/PlaceholderPage.vue`, the Vue starter files `src/assets/main.css`, `src/assets/base.css` and `src/assets/logo.svg`, and `backend/test_connection.py`. They're scheduled for removal.
 
 ---
 
@@ -394,20 +389,21 @@ cd 128-
    ```text
    http://localhost:5173/**
    ```
-   Add your production URL here too when you deploy.
+   If you open the app at another address or port, add that address too.
 
 ### 8.4 Create the database
 
 1. In Supabase, open **SQL Editor**, paste the whole contents of `database/schema.sql`, and run it.
 2. Run it once on a new project. If you get an error saying a trigger or table already exists, the schema is already there.
-3. Turn on live updates, so open tabs and browsers stay in step. Run this once in the SQL Editor:
+3. The schema also turns on live updates (Realtime), so open tabs and computers stay in step. Row-level security still applies, so each user only receives their own new and changed rows. If your database was created before this was added to the file, run this once in the SQL Editor:
 
    ```sql
    alter publication supabase_realtime add table
      public.songs, public.playlists, public.playlist_songs, public.exports;
    ```
 
-   If it says a table is already a member of the publication, live updates are already on for it. Row-level security still applies, so each user only receives their own new and changed rows.
+   If it says a table is already a member of the publication, live updates are already on for it.
+4. Under **Authentication → Sign In / Providers**, keep only **Google** turned on. The app has no email sign-in, so leaving **Email** off removes a way in that nobody uses.
 
 ### 8.5 Configure the frontend
 
@@ -470,6 +466,10 @@ Important:
 - Never put the secret key in `.env.local`, in any `VITE_` variable, or in chat.
 - `.env` and `.env.local` are git-ignored. Don't remove that rule.
 - The backend reads `.env` only when it starts. Restart it after any change.
+- **On each family computer,** `backend/.env` holds a copy of the secret key. Copy the file over in person (for example with a USB drive), not by chat or email, and don't share the folder.
+- **If a computer is lost or compromised,** create a new secret key in Supabase (**Settings → API Keys**), delete the old one, and update `backend/.env` on every computer.
+- Keep the backend on `--host 127.0.0.1` (section 9). That makes it reachable only from the same computer, not from other devices on the network.
+- `requirements.txt` pins exact versions, except yt-dlp, which has a minimum. Update yt-dlp regularly with `python -m pip install -U "yt-dlp[default]"`, because YouTube changes often.
 
 ---
 
@@ -595,7 +595,7 @@ The POC endpoints (`GET /playlists`, `POST /playlists`, `POST /playlists/{id}/ex
 From the `backend` folder, with the virtual environment active:
 
 ```bash
-python -m pytest tests -q
+python -m pytest -q
 ```
 
 The suite covers:
@@ -605,11 +605,10 @@ The suite covers:
 - Supabase calls: the secret key is sent only in the `apikey` header, and the batch is closed even if Supabase fails midway.
 - Authentication: missing, rejected and unreachable token checks.
 - Export rules: limits, ownership, skipped songs, ZIP verification, cleanup of temporary files, download links, cancel, and deleting history.
-- The URL validator from the POC.
+- Export file names, including song titles that contain `%`.
+- The URL validator from the POC, and that Shorts links are imported like any other video.
 
 These tests use fake Supabase and yt-dlp stand-ins, so they run without internet access.
-
-`backend/test_youtube_metadata.py` is a manual script, not part of the suite. It calls YouTube, so it needs internet access.
 
 ### Frontend
 
@@ -629,15 +628,13 @@ This checks that the app compiles. There are no automated frontend tests yet, so
 - **Deleting export history resets the daily export count,** because that count comes from the same rows.
 - **Removing songs from a playlist has no undo or confirmation.** The songs stay in the library, so they can be added back.
 - **No reordering during search:** drag and Move up/down are turned off while the playlist search box has text.
-- **Imports need the backend running on your machine.** There's no hosted backend yet.
+- **Runs locally, by design.** Each family computer runs its own frontend and backend; there's no online server. Online hosting was dropped because YouTube often blocks downloads from cloud servers (see section 14).
 - **Only one backend process is supported.** Background imports and exports, download links and the restart cleanup all assume a single process.
 - **Library size:** the whole library is loaded into the browser (1,000 songs per request) and paged there, so search, the summary cards and Add to Playlist see every song. A very large library takes longer to open.
 - **Live updates need Realtime turned on** (section 8.4, step 3). Without it, pages still catch up when you return to the tab, but don't update by themselves.
 - **Delete notices reach every signed-in user.** Supabase can't check who owned a deleted row, so it sends the deleted row's ID (a random ID, no titles or names) to everyone watching that table. Pages ignore IDs they aren't showing, except removals from a playlist, which cause a quiet reload.
 - **Daily quotas:** `DAILY_IMPORT_LIMIT` and `DAILY_EXPORT_SONG_LIMIT` are placeholder values. Set them to what you want.
 - **Google consent screen:** check its publishing status in Google Cloud before sharing the app with family.
-- **Legacy files:** the POC files listed in section 5 are still in the repo and aren't used.
-- **Not deployed:** no production hosting or production URL yet.
 
 ---
 
@@ -645,11 +642,11 @@ This checks that the app compiles. There are no automated frontend tests yet, so
 
 1. ~~**Playlists:** create playlists, add songs, reorder, rename and delete.~~ Done in Milestone 3.
 2. ~~**Export:** download a playlist as a ZIP of numbered MP3s, with an Export History page.~~ Done in Milestone 4.
-3. **Cleanup:** delete the legacy POC files and the `/poc` route.
+3. ~~**Cleanup and security review:** delete the legacy POC files and the `/poc` route, pin the backend packages, and bring `schema.sql` in line with the live database.~~ Done.
 4. **Live progress:** show import and export progress through Supabase Realtime instead of polling every second. (Pages already use Realtime to stay in step.)
 5. **Faster token checks:** verify login tokens locally with the project's public keys, instead of calling Supabase on each request.
 6. **Frontend tests:** automated tests for the playlist and library pages.
-7. **Deployment:** choose a backend host that can run yt-dlp and FFmpeg, and set the production URL in Supabase.
+7. **Local deployment:** an install guide and a start script for each family computer (updates yt-dlp, starts the backend and frontend, and opens the browser). Online hosting was dropped: YouTube often blocks downloads from cloud servers, and a host that can run FFmpeg would add a monthly cost.
 
 ---
 

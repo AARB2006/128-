@@ -55,10 +55,15 @@ def download_mp3(
         if info.get("status") == "started":
             on_progress(DOWNLOAD_SHARE)
 
+    # yt-dlp treats "%(...)s" in the output name as a template field, so a song
+    # titled "%(uploader)s" would be saved under another name. Doubling every
+    # "%" keeps the title exactly as written.
+    template_stem = stem.replace("%", "%%")
+
     options = base_options()
     options.update({
         "format": "bestaudio/best",
-        "outtmpl": str(work_dir / f"{stem}.%(ext)s"),
+        "outtmpl": str(work_dir / f"{template_stem}.%(ext)s"),
         "ignoreerrors": False,
         "noprogress": True,  # we report progress ourselves
         "progress_hooks": [progress_hook],

@@ -1,8 +1,14 @@
-fastapi
-uvicorn
-sqlalchemy
-pymysql
-python-dotenv
-yt-dlp[default]
-pytest
-httpx
+# Backend packages. Versions are pinned so every install gets the same code;
+# update them on purpose and re-run the tests.
+fastapi==0.165.0
+uvicorn==0.54.0
+python-dotenv==1.2.4
+httpx==0.29.0
+
+# yt-dlp has a minimum, not a fixed version: YouTube changes often, and an
+# outdated yt-dlp is the usual reason imports and exports suddenly fail.
+# Update it with: pip install -U "yt-dlp[default]"
+yt-dlp[default]>=2026.11.23
+
+# Tests
+pytest==9.2.0

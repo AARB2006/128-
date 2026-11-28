@@ -1,6 +1,6 @@
 /* Layer order: anything in `components` (the app-* classes below) can be
    overridden by a Tailwind utility on the same element. Plain rules outside a
-   layer (the .app-shell tokens, style.css, the POC components) beat both. */
+   layer (the .app-shell tokens, style.css) beat both. */
 @layer theme, base, components, utilities;
 
 @import 'tailwindcss/theme.css' layer(theme);
@@ -43,7 +43,7 @@
 }
 
 /* Styles for the signed-in application. Everything is scoped under
-   .app-shell or prefixed with app-, so it cannot affect the landing page or /poc. */
+   .app-shell or prefixed with app-, so it cannot affect the landing page. */
 
 /* Dark theme with the logo's violet. Every colour in the app comes from here. */
 .app-shell {

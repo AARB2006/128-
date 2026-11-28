@@ -171,38 +171,11 @@ def test_supabase_failing_midway_still_closes_the_batch():
     assert len(store.songs) == 1
     assert [e.status for e in entries] == ["success", "failed"]
 
-# ---- Shorts are excluded -----------------------------------------------------
+# ---- Shorts are imported like any other video ---------------------------------
 
-def test_shorts_links_are_rejected_before_any_lookup(fake_metadata):
-    calls = []
-    importer_fetch = importer.fetch_metadata
-    importer.fetch_metadata = lambda u: calls.append(u) or importer_fetch(u)
-    try:
-        store = FakeStore()
-        batch_id = start_and_run(store, [f"https://youtube.com/shorts/{A}", url(B)])
-    finally:
-        importer.fetch_metadata = importer_fetch
+def test_shorts_links_are_imported(fake_metadata):
+    store = FakeStore()
+    batch_id = start_and_run(store, [f"https://youtube.com/shorts/{A}", url(B)])
 
-    assert store.statuses(batch_id) == ["invalid", "success"]
-    assert store.items[(batch_id, 1)]["error_message"] == importer.SHORTS_MESSAGE
-    assert calls == [url(B)]  # the Short was never looked up on YouTube
-
-
-@pytest.mark.parametrize("link", [
-    "https://www.youtube.com/shorts/aaaaaaaaaaa",
-    "youtube.com/shorts/aaaaaaaaaaa",
-    "https://m.youtube.com/shorts/aaaaaaaaaaa?feature=share",
-    "HTTPS://YOUTUBE.COM/SHORTS/aaaaaaaaaaa",
-])
-def test_shorts_detection_variants(link):
-    assert importer.is_shorts_link(link)
-
-
-@pytest.mark.parametrize("link", [
-    url(A),
-    "https://youtu.be/aaaaaaaaaaa",
-    "https://youtube.com/embed/aaaaaaaaaaa",
-    "https://example.com/shorts/aaaaaaaaaaa",
-])
-def test_non_shorts_links_are_not_flagged(link):
-    assert not importer.is_shorts_link(link)
+    assert store.statuses(batch_id) == ["success", "success"]
+    assert {track["video_id"] for _, track in store.songs} == {A, B}

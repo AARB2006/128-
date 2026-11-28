@@ -45,16 +45,6 @@ const routes = [
   { path: '/:pathMatch(.*)*', redirect: { name: 'landing' } },
 ]
 
-// The proof-of-concept import/export page stays reachable while developing,
-// but is left out of production builds.
-if (import.meta.env.DEV) {
-  routes.push({
-    path: '/poc',
-    name: 'poc',
-    component: () => import('@/views/PocView.vue'),
-  })
-}
-
 const router = createRouter({
   history: createWebHistory(),
   routes,

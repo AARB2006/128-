@@ -1,5 +1,5 @@
 /*
-Supabase database setup: tables, indexes and row-level security
+Supabase database setup: tables, indexes, row-level security and Realtime
 for profiles, songs, playlists, imports and exports.
 */
 
@@ -364,6 +364,7 @@ create or replace function public.add_songs_to_playlist(
     p_song_ids    uuid[]
 ) returns integer
 language plpgsql
+set search_path = ''
 as $$
 declare added int;
 begin
@@ -393,6 +394,7 @@ create or replace function public.reorder_playlist_songs(
     p_song_ids    uuid[]
 ) returns void
 language plpgsql
+set search_path = ''
 as $$
 declare current_count int;
 begin
@@ -419,3 +421,11 @@ revoke all on function public.add_songs_to_playlist(uuid, uuid[])    from public
 revoke all on function public.reorder_playlist_songs(uuid, uuid[])   from public, anon;
 grant execute on function public.add_songs_to_playlist(uuid, uuid[])  to authenticated;
 grant execute on function public.reorder_playlist_songs(uuid, uuid[]) to authenticated;
+
+-- ---------------------------------------------------------------
+-- 9. Realtime: open pages hear about changes made elsewhere
+-- ---------------------------------------------------------------
+-- Row-level security still applies: each user only receives their own new
+-- and changed rows. (Deletes carry only the row's id.)
+alter publication supabase_realtime add table
+    public.songs, public.playlists, public.playlist_songs, public.exports;

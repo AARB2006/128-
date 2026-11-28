@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 
 from . import config
-from .auth import get_current_user_id
+from .auth import SignedInUser, get_signed_in_user
 from .errors import api_error
 from .exports import service as exports
 from .frontend import mount_frontend
@@ -25,6 +25,7 @@ from .schemas import (
     ImportRequest,
     ImportStarted,
 )
+from .jobs import JobKeys
 from .supabase_store import StoreError, SupabaseStore
 
 
@@ -37,31 +38,26 @@ def get_store() -> SupabaseStore:
     if not config.supabase_is_configured():
         api_error(503, "The server is not configured yet.")
 
-    return SupabaseStore(config.SUPABASE_URL, config.SUPABASE_SECRET_KEY)
+    return SupabaseStore(
+        config.SUPABASE_URL, config.SUPABASE_PUBLISHABLE_KEY, jobs=JobKeys(config.JOBS_FILE)
+    )
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # A restart kills running imports; close out any that were left hanging.
+    # Closing YT-MP3 stops running imports and exports; mark the ones this
+    # computer was running as interrupted instead of leaving them "running".
     if config.supabase_is_configured():
         try:
-            count = get_store().fail_interrupted_batches()
+            count = get_store().recover_interrupted_jobs()
             if count:
-                logger.info("Marked %s interrupted import(s) as failed", count)
+                logger.info("Marked %s interrupted job(s) as failed", count)
         except Exception:
-            logger.exception("Could not clean up interrupted imports")
+            logger.exception("Could not clean up interrupted jobs")
     else:
-        logger.warning("Supabase is not configured; imports are disabled.")
+        logger.warning("Supabase is not configured; imports and exports are disabled.")
 
-    # Same for exports, then delete any files they left behind.
-    if config.supabase_is_configured():
-        try:
-            count = get_store().fail_interrupted_exports()
-            if count:
-                logger.info("Marked %s interrupted export(s) as failed", count)
-        except Exception:
-            logger.exception("Could not clean up interrupted exports")
-
+    # Then delete any files they left behind.
     try:
         exports.sweep()
     except Exception:
@@ -95,7 +91,7 @@ def health_check():
 def start_import(
     request: ImportRequest,
     background_tasks: BackgroundTasks,
-    owner_id: str = Depends(get_current_user_id),
+    user: SignedInUser = Depends(get_signed_in_user),
     store: SupabaseStore = Depends(get_store),
 ):
     """
@@ -106,7 +102,7 @@ def start_import(
     (row-level security lets each user read only their own).
     """
     try:
-        batch_id, entries = prepare_import(store, owner_id, request.urls)
+        batch_id, entries = prepare_import(store, user, request.urls)
 
     except ImportRejected as error:
         api_error(error.status_code, error.message)
@@ -115,7 +111,7 @@ def start_import(
         api_error(503, "Could not reach the database. Please try again.")
 
     if any(entry.status == "pending" for entry in entries):
-        background_tasks.add_task(run_import, store, batch_id, owner_id, entries)
+        background_tasks.add_task(run_import, store, batch_id, entries)
 
     return ImportStarted(batch_id=batch_id, total_links=len(entries))
 
@@ -129,7 +125,7 @@ def _export_error(error: exports.ExportRejected):
 @app.post("/exports", response_model=ExportStarted, status_code=202)
 def start_export(
     request: ExportRequest,
-    owner_id: str = Depends(get_current_user_id),
+    user: SignedInUser = Depends(get_signed_in_user),
     store: SupabaseStore = Depends(get_store),
 ):
     """
@@ -137,7 +133,7 @@ def start_export(
     then reads progress from its `exports` row in Supabase.
     """
     try:
-        job = exports.prepare_export(store, owner_id, str(request.playlist_id))
+        job = exports.prepare_export(store, user, str(request.playlist_id))
     except exports.ExportRejected as error:
         _export_error(error)
     except StoreError:
@@ -150,11 +146,11 @@ def start_export(
 @app.post("/exports/{export_id}/cancel", status_code=202)
 def cancel_export(
     export_id: UUID,
-    owner_id: str = Depends(get_current_user_id),
+    user: SignedInUser = Depends(get_signed_in_user),
     store: SupabaseStore = Depends(get_store),
 ):
     try:
-        exports.request_cancel(store, owner_id, str(export_id))
+        exports.request_cancel(store, user, str(export_id))
     except exports.ExportRejected as error:
         _export_error(error)
     except StoreError:
@@ -166,11 +162,11 @@ def cancel_export(
 @app.post("/exports/{export_id}/download-link", response_model=DownloadLink)
 def export_download_link(
     export_id: UUID,
-    owner_id: str = Depends(get_current_user_id),
+    user: SignedInUser = Depends(get_signed_in_user),
     store: SupabaseStore = Depends(get_store),
 ):
     try:
-        path = exports.create_download_link(store, owner_id, str(export_id))
+        path = exports.create_download_link(store, user, str(export_id))
     except exports.ExportRejected as error:
         _export_error(error)
     except StoreError:
@@ -196,12 +192,12 @@ def download_export(token: str):
 @app.delete("/exports/{export_id}", status_code=204)
 def remove_export(
     export_id: UUID,
-    owner_id: str = Depends(get_current_user_id),
+    user: SignedInUser = Depends(get_signed_in_user),
     store: SupabaseStore = Depends(get_store),
 ):
     """Remove one finished export from the history (and delete its ZIP)."""
     try:
-        exports.delete_export(store, owner_id, str(export_id))
+        exports.delete_export(store, user, str(export_id))
     except exports.ExportRejected as error:
         _export_error(error)
     except StoreError:
@@ -212,12 +208,12 @@ def remove_export(
 
 @app.delete("/exports")
 def clear_export_history(
-    owner_id: str = Depends(get_current_user_id),
+    user: SignedInUser = Depends(get_signed_in_user),
     store: SupabaseStore = Depends(get_store),
 ):
     """Remove every finished export from the history. A running one is kept."""
     try:
-        deleted = exports.clear_history(store, owner_id)
+        deleted = exports.clear_history(store, user)
     except StoreError:
         api_error(503, "Could not reach the database. Please try again.")
 

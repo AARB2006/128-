@@ -33,7 +33,7 @@ YT-MP3 is split into three parts:
 
 - **Vue frontend:** the signed-in app (sidebar, Music Library, Import Music, Playlists, Export History) and the landing page with Google sign-in.
 - **Supabase:** Google sign-in, the Postgres database, and row-level security (RLS) that keeps each user's data separate.
-- **FastAPI backend:** checks links, reads video metadata with yt-dlp, writes songs to the database, and builds export ZIPs (yt-dlp + FFmpeg). It's the only part that can write songs and export records, because it holds the secret key.
+- **FastAPI backend:** checks links, reads video metadata with yt-dlp, saves songs through database functions, and builds export ZIPs (yt-dlp + FFmpeg). It holds **no secret key**: it acts as the signed-in user, and background work uses a key that only works for its own job (section 6).
 
 Songs are stored as **links plus metadata only** (title, duration, canonical URL). Audio is only created temporarily during an export, and the ZIP is deleted shortly after.
 
@@ -65,7 +65,7 @@ Each user has a private library. If two users import the same YouTube video, eac
   - An animated progress bar shows "Importing Music 2/3..." while the import runs.
   - When it finishes, you see a summary: songs added, duplicates skipped, and each failed link with its reason. Failed links go back in the box so you can fix them and retry.
   - Reloading the page, or opening it on another device, picks the running import back up.
-  - Daily quota per user (default 100 links per rolling 24 hours), set by `DAILY_IMPORT_LIMIT`.
+  - Daily quota per user (default 100 links per rolling 24 hours), set in the database (`private.app_limits`, section 6).
   - Only one import can run at a time per user.
 - **Playlists page:**
   - Lists your playlists, newest first, with the name, description, number of songs, total length, date created and when it was last exported.
@@ -93,7 +93,7 @@ Each user has a private library. If two users import the same YouTube video, eac
   - Choose **Export Playlist** on a playlist page or in a playlist's ⋮ menu, check the details, and start. Format is a ZIP of MP3s, numbered in playlist order.
   - A progress card in the bottom-right corner shows the percentage and stays visible while you move between pages. It can be collapsed and has **Cancel** and **Download** buttons. Reloading the page picks a running export back up.
   - A song that can't be downloaded is skipped, with its reason recorded; the rest are still exported. A ZIP is only offered after it is fully written and checked.
-  - Limits (all configurable): up to `MAX_EXPORT_SONGS` songs per export (default 100), `DAILY_EXPORT_SONG_LIMIT` songs per rolling 24 hours (default 300), and one running export per user.
+  - Limits (set in the database, `private.app_limits`): up to 100 songs per export and 300 songs per rolling 24 hours by default, and one running export per user.
   - Missing FFmpeg, too little free disk space and a full disk are reported with a clear message.
   - Finished ZIPs stay downloadable for `EXPORT_FILE_TTL_MINUTES` (default 60), then are deleted. Temporary audio is always deleted.
 - **Export History:** lists recent exports that produced a file, newest first, with the playlist name, date, song count (for example "8 of 10 · 2 skipped") and whether the ZIP is still available ("Ready until" a time, or "Expired").
@@ -125,9 +125,9 @@ Each user has a private library. If two users import the same YouTube video, eac
 
 1. You paste links and click **Import**. The browser sends your login token and the links to `POST /imports`.
 2. The backend asks Supabase who the token belongs to. It never trusts a user ID sent in the request body.
-3. The backend checks the link count, the daily quota, and whether an import is already running.
-4. It records a batch and one row per link, then replies `202 Accepted` with the batch ID.
-5. In the background, it fetches each link's metadata and saves the song. It updates that link's row as it goes.
+3. The backend checks each link's shape, then calls the database function `start_import` **as you** (with your login token). The function checks the link count, the daily quota, whether an import is already running, and which songs you already have.
+4. It records a batch and one row per link, and returns a **job key** for this batch. The backend replies `202 Accepted` with the batch ID.
+5. In the background, the backend fetches each link's metadata and saves the song with `record_import_item`, sending the job key (not your login token, which may expire). It updates that link's row as it goes.
 6. The browser reads the batch every second, showing the link currently in progress and the overall percentage.
 
 ### Why the progress comes from the database
@@ -137,12 +137,12 @@ Each link's result is written to the database as soon as it's known. Because of 
 ### Export flow
 
 1. You click **Export Playlist**. The browser sends your login token and the playlist ID to `POST /exports`.
-2. The backend checks that the playlist is yours, the song count, the daily limit, free disk space, FFmpeg, and that you have no other export running.
-3. It records an `exports` row and one `export_items` row per song, then replies `202 Accepted`.
+2. The backend checks free disk space and FFmpeg, then calls the database function `start_export` **as you**. The function checks that the playlist is yours, the song count, the daily limit, and that you have no other export running.
+3. It records an `exports` row and one `export_items` row per song and returns a job key; the backend replies `202 Accepted`. Progress is saved with that key, so a long export keeps going even if your login token expires.
 4. In the background (a small thread pool, `MAX_CONCURRENT_EXPORTS` at a time), each song is downloaded with yt-dlp and converted to MP3 with FFmpeg, then everything is packed into a ZIP. The row's percentage is updated as it goes.
 5. The browser reads the `exports` row every second to update the progress card.
 6. When it finishes, **Download** asks `POST /exports/{id}/download-link` for a one-time link that works for 60 seconds. The browser downloads it like any file.
-7. A background sweeper deletes ZIPs after `EXPORT_FILE_TTL_MINUTES`. If the server restarts mid-export, that export is marked failed.
+7. A background sweeper deletes ZIPs after `EXPORT_FILE_TTL_MINUTES`. If YT-MP3 is closed mid-export, the backend remembers the job's key in `backend/.jobs.json` and marks it failed ("interrupted") when it starts again. A job left "running" far too long (an hour for imports, six for exports) is closed automatically when that person starts a new one.
 
 ### Playlist flow
 
@@ -230,17 +230,20 @@ Styling uses Tailwind CSS, with no component library. Notes for contributors:
 ├── Setup YT-MP3.bat                Windows: one-time setup (runs scripts/windows/setup.ps1)
 ├── Start YT-MP3.bat                Windows: starts the app (runs scripts/windows/start.ps1)
 ├── INSTALL.md                      How to install YT-MP3 on a family computer
+├── supabase-public.env             The project's two public Supabase values (read by Setup)
 ├── scripts/windows/                Setup and start scripts (PowerShell)
 │
 ├── database/
-│   └── schema.sql                  Full database schema, RLS, triggers and Realtime
+│   ├── schema.sql                  Full database schema, RLS, triggers, Realtime and job functions
+│   └── upgrade-01-no-secret-key.sql  Adds the job functions to an existing database
 │
 ├── backend/
 │   ├── app/
 │   │   ├── main.py                 FastAPI app and routes (/health, /imports, /exports)
 │   │   ├── auth.py                 Verifies login tokens with Supabase
 │   │   ├── importer.py             Import logic: validation, quota, background work
-│   │   ├── supabase_store.py       The only code that writes with the secret key
+│   │   ├── supabase_store.py       Database calls: as the signed-in user, or with a job key
+│   │   ├── jobs.py                 Keys of running jobs (backend/.jobs.json)
 │   │   ├── config.py               Settings loaded from backend/.env
 │   │   ├── errors.py               One error format for all API errors
 │   │   ├── schemas.py              Request and response models
@@ -352,7 +355,18 @@ grant update (name, description) on public.playlists to authenticated;
 
 The schema also defines two playlist functions the browser calls through `supabase.rpc`: `add_songs_to_playlist(p_playlist_id, p_song_ids)` appends songs to the end of a playlist, skips ones already in it, and returns how many were added; `reorder_playlist_songs(p_playlist_id, p_song_ids)` renumbers every song 1 to n in one transaction.
 
-Only the backend holds the secret key, and only it can write songs, import rows and export rows. The browser never gets write access to those tables.
+**No secret key outside Supabase (section 10 of the schema).** The backend runs on each family computer, so it must not hold the secret key, which bypasses row-level security for every user. Instead:
+
+- Songs, import rows and export rows are written **only through database functions**. Users can't insert or update those tables directly.
+- `start_import` and `start_export` are called with the user's own login token. They enforce the rules (one job at a time, the limits, ownership) for `auth.uid()` only.
+- They return a random **job key** (only its SHA-256 hash is stored, in `private.job_keys`). `record_import_item`, `finish_import`, `update_export_job`, `update_export_item_job`, `skip_pending_export_items_job` and `interrupt_job` accept that key instead of a login token. A key can only touch its own job and stops working when the job ends.
+- Users can delete their own finished exports directly (Export History).
+- The limits are rows in `private.app_limits`, the same for everyone. For example: `update private.app_limits set value = 200 where name = 'daily_import_links';`
+- Errors use SQLSTATE `PTxxx`, which PostgREST returns as HTTP status `xxx`, with a message the app shows as is.
+
+The worst a stolen computer (or a curious family member) can do is act as the person signed in on it, on their own data. The trade-off: someone with technical skill could add songs with made-up titles to their *own* library.
+
+**Upgrading an existing database:** run `database/upgrade-01-no-secret-key.sql` once in the SQL Editor. It's safe to run again, and the old backend keeps working after it, so run it before updating the computers. Then delete `SUPABASE_SECRET_KEY` from every `backend/.env` (the Windows Setup does this). Consider creating a new secret key in Supabase and deleting the old one, since copies of it existed outside Supabase.
 
 ---
 
@@ -384,8 +398,9 @@ cd 128-
 
 1. Go to <https://supabase.com>, create a project, and note the **Project URL**.
 2. In **Settings → API Keys**, copy:
-   - the **Publishable key** (`sb_publishable_...`), which is safe to use in the browser;
-   - the **Secret key** (`sb_secret_...`), which must stay on the backend.
+   - the **Publishable key** (`sb_publishable_...`), which is safe to use in the browser and the backend.
+
+   YT-MP3 needs no secret key. Keep the project's secret key in the Supabase dashboard only.
 
 ### 8.3 Set up Google sign-in
 
@@ -450,17 +465,13 @@ Create `backend/.env` by copying `backend/.env.example`. Then fill in the Supaba
 ```env
 SUPABASE_URL=https://YOUR-PROJECT-REF.supabase.co
 SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxxxxxxxxxxxxxxx
-SUPABASE_SECRET_KEY=sb_secret_xxxxxxxxxxxxxxxx
 
 MAX_VIDEO_SECONDS=1800
-DAILY_IMPORT_LIMIT=100
 JS_RUNTIME=node
 
 ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 
 # Export (optional; these are the defaults)
-MAX_EXPORT_SONGS=100
-DAILY_EXPORT_SONG_LIMIT=300
 MAX_CONCURRENT_EXPORTS=2
 EXPORT_FILE_TTL_MINUTES=60
 EXPORT_MIN_FREE_MB=1024
@@ -469,12 +480,10 @@ EXPORT_MIN_FREE_MB=1024
 
 Important:
 
-- `SUPABASE_SECRET_KEY` bypasses row-level security. Keep it only in `backend/.env`.
-- Never put the secret key in `.env.local`, in any `VITE_` variable, or in chat.
+- **No secret key.** `backend/.env` holds only public values. Never add a secret key (`sb_secret_...`) to it, to `.env.local`, to `supabase-public.env` or to any `VITE_` variable.
+- `supabase-public.env` (in the repository root) holds the same two public values, so the Windows Setup asks nothing. Because the repository is public, limit Google sign-in to your family (INSTALL.md, "Once per Supabase project").
 - `.env` and `.env.local` are git-ignored. Don't remove that rule.
 - The backend reads `.env` only when it starts. Restart it after any change.
-- **On each family computer,** `backend/.env` holds a copy of the secret key. Copy the file over in person (for example with a USB drive), not by chat or email, and don't share the folder.
-- **If a computer is lost or compromised,** create a new secret key in Supabase (**Settings → API Keys**), delete the old one, and update `backend/.env` on every computer.
 - Keep the backend on `--host 127.0.0.1` (section 9; the Windows start script does this). That makes it reachable only from the same computer, not from other devices on the network.
 - `FRONTEND_DIST_DIR` (optional): a folder with the built frontend (`dist`). When set, the backend also serves the app, so everything runs from one address. The Windows start script sets it; leave it unset in development.
 - `requirements.txt` pins exact versions, except yt-dlp, which has a minimum. Update yt-dlp regularly with `python -m pip install -U "yt-dlp[default]"`, because YouTube changes often.
@@ -601,7 +610,7 @@ Possible errors. All use the same shape: `{"detail": {"message": "...", "problem
 | Status | When |
 |---|---|
 | 401 | Missing, invalid or expired token |
-| 409 | Another import is still running |
+| 409 | Another import is still running (the message comes from the database) |
 | 422 | No links, or more than 10 |
 | 429 | Daily quota reached |
 | 503 | Backend not configured, or Supabase unreachable |
@@ -626,9 +635,9 @@ python -m pytest -q
 
 The suite covers:
 
-- Import rules: blank lines, the 10-link limit, duplicates, the daily quota, and the one-import-at-a-time rule.
+- Import rules: blank lines, the 10-link limit, duplicates, and the database's answers (daily quota, one import at a time) passed on as they are.
 - Partial failure: one bad video doesn't cancel the others, and the batch is marked `partial`.
-- Supabase calls: the secret key is sent only in the `apikey` header, and the batch is closed even if Supabase fails midway.
+- Supabase calls: user calls send the login token, job calls send only the job key (no token, no secret key), keys are retired when a job ends, and jobs cut off by closing YT-MP3 are marked interrupted on the next start.
 - Authentication: missing, rejected and unreachable token checks.
 - Export rules: limits, ownership, skipped songs, ZIP verification, cleanup of temporary files, download links, cancel, and deleting history.
 - Export file names, including song titles that contain `%`.
@@ -662,8 +671,9 @@ This checks that the app compiles. There are no automated frontend tests yet, so
 - **Library size:** the whole library is loaded into the browser (1,000 songs per request) and paged there, so search, the summary cards and Add to Playlist see every song. A very large library takes longer to open.
 - **Live updates need Realtime turned on** (section 8.4, step 3). Without it, pages still catch up when you return to the tab, but don't update by themselves.
 - **Delete notices reach every signed-in user.** Supabase can't check who owned a deleted row, so it sends the deleted row's ID (a random ID, no titles or names) to everyone watching that table. Pages ignore IDs they aren't showing, except removals from a playlist, which cause a quiet reload.
-- **Daily quotas:** `DAILY_IMPORT_LIMIT` and `DAILY_EXPORT_SONG_LIMIT` are placeholder values. Set them to what you want.
-- **Google consent screen:** check its publishing status in Google Cloud before sharing the app with family.
+- **Daily quotas:** the defaults in `private.app_limits` are placeholder values. Set them to what you want (section 6).
+- **Google consent screen:** keep it in **Testing**, with your family as test users (INSTALL.md), because the repository and `supabase-public.env` are public.
+- **Song details are trusted from the user's own computer.** Without a secret key, someone with technical skill could call the import functions directly and add songs with made-up titles to their *own* library. It can't affect anyone else.
 
 ---
 
@@ -676,6 +686,7 @@ This checks that the app compiles. There are no automated frontend tests yet, so
 5. **Faster token checks:** verify login tokens locally with the project's public keys, instead of calling Supabase on each request.
 6. **Frontend tests:** automated tests for the playlist and library pages.
 7. ~~**Local deployment:** an install guide and setup and start scripts for each family computer.~~ Done: see [INSTALL.md](INSTALL.md). Online hosting was dropped: YouTube often blocks downloads from cloud servers, and a host that can run FFmpeg would add a monthly cost.
+8. ~~**No secret key on family computers:** the backend acts as the signed-in user, and background work uses per-job keys; Setup asks nothing.~~ Done: see section 6.
 
 ---
 

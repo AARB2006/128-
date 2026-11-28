@@ -18,6 +18,8 @@ from app.exports.service import ExportRejected, prepare_export, run_export
 from app.main import app, get_store
 from app.supabase_store import StoreError
 
+from conftest import user_id
+
 
 PLAYLIST = "11111111-1111-1111-1111-111111111111"
 
@@ -38,80 +40,107 @@ class FakeExportStore:
             for i, title in enumerate(titles, start=1)
         ]
         self.recent = 0
+        self.daily_limit = 300
+        self.max_songs = 100
+        self.keys = set()  # exports whose job key still works
         self.playlist_deleted = False
         self.exports = {}
         self.items = {}  # (export_id, position) -> dict
         self.updates = []  # every update_export call, in order
 
-    def get_owned_playlist(self, owner_id, playlist_id):
-        if owner_id == self.owner and playlist_id == PLAYLIST:
-            return dict(self.playlist)
-        return None
+    # ---- as the user (behaves like the database function start_export) ----------
 
-    def get_playlist_tracks(self, owner_id, playlist_id):
-        return [dict(t) for t in self.tracks]
+    def playlist_song_count(self, user, playlist_id):
+        if user_id(user) == self.owner and playlist_id == PLAYLIST:
+            return len(self.tracks)
+        return 0
 
-    def recent_export_song_count(self, owner_id, since):
-        return self.recent
-
-    def create_export(self, owner_id, playlist, total_songs):
+    def start_export(self, user, playlist_id):
+        if user_id(user) != self.owner or playlist_id != PLAYLIST:
+            raise StoreError("Playlist not found.", 404)
+        if not self.tracks:
+            raise StoreError("This playlist has no songs to export.", 409)
+        if len(self.tracks) > self.max_songs:
+            raise StoreError(
+                f"Playlists with more than {self.max_songs} songs can't be exported yet.", 422)
+        if self.recent + len(self.tracks) > self.daily_limit:
+            remaining = max(self.daily_limit - self.recent, 0)
+            raise StoreError(
+                f"Daily export limit reached. You can export {remaining} more song(s) "
+                "in the next 24 hours.", 429)
         if any(e["status"] in service.ACTIVE for e in self.exports.values()):
-            raise StoreError("duplicate", status_code=409)
+            raise StoreError("An export is already running. Wait for it to finish.", 409)
+
         export_id = str(uuid.uuid4())
         self.exports[export_id] = {
             "export_id": export_id,
-            "owner_id": owner_id,
-            "playlist_id": playlist["playlist_id"],
-            "total_songs": total_songs,
+            "owner_id": user_id(user),
+            "playlist_id": PLAYLIST,
+            "total_songs": len(self.tracks),
             "status": "pending",
             "file_expires_at": None,
         }
-        return export_id
-
-    def create_export_items(self, export_id, tracks):
-        for t in tracks:
+        for t in self.tracks:
             # Only references are stored, never titles or video ids.
             self.items[(export_id, t["position"])] = {
                 "position": t["position"],
                 "song_id": t["song_id"],
                 "status": "pending",
             }
+        self.keys.add(export_id)
+        return {
+            "export_id": export_id,
+            "job_key": f"key-{export_id}",
+            "playlist_name": self.playlist["name"],
+            "tracks": [dict(t) for t in self.tracks],
+        }
 
-    def get_export(self, owner_id, export_id):
+    def get_export(self, user, export_id):
         row = self.exports.get(export_id)
-        if not row or row["owner_id"] != owner_id:
+        if not row or row["owner_id"] != user_id(user):
             return None
         # Like the real query: the playlist's current name, or None if deleted.
         playlist = self.playlist if row["playlist_id"] == PLAYLIST and not self.playlist_deleted else None
         return {**row, "playlist": {"name": playlist["name"]} if playlist else None}
 
+    # ---- with the job key ------------------------------------------------------
+
+    def _check(self, export_id):
+        if export_id not in self.keys:
+            raise StoreError("This job can no longer be updated.", 403)
+
     def update_export(self, export_id, **fields):
+        self._check(export_id)
         self.updates.append(fields)
         self.exports[export_id].update(fields)
+        if fields.get("status") in ("completed", "partial", "failed", "cancelled"):
+            self.keys.discard(export_id)
 
     def update_export_item(self, export_id, position, **fields):
+        self._check(export_id)
         self.items[(export_id, position)].update(fields)
 
     def skip_pending_export_items(self, export_id, reason):
+        self._check(export_id)
         for (eid, _), item in self.items.items():
             if eid == export_id and item["status"] == "pending":
                 item.update(status="skipped", error_message=reason)
 
-    def delete_export(self, owner_id, export_id):
+    def delete_export(self, user, export_id):
         row = self.exports.get(export_id)
-        if not row or row["owner_id"] != owner_id or row["status"] in service.ACTIVE:
+        if not row or row["owner_id"] != user_id(user) or row["status"] in service.ACTIVE:
             return False
         del self.exports[export_id]
         self.items = {k: v for k, v in self.items.items() if k[0] != export_id}
         return True
 
-    def delete_finished_exports(self, owner_id):
+    def delete_finished_exports(self, user):
         ids = [
             eid for eid, row in self.exports.items()
-            if row["owner_id"] == owner_id and row["status"] not in service.ACTIVE
+            if row["owner_id"] == user_id(user) and row["status"] not in service.ACTIVE
         ]
         for eid in ids:
-            self.delete_export(owner_id, eid)
+            self.delete_export(user, eid)
         return ids
 
     def item_statuses(self, export_id):
@@ -189,6 +218,7 @@ def test_progress_only_goes_up_and_ends_at_100(downloads):
 def test_progress_writes_are_throttled(monkeypatch):
     store = FakeExportStore()
     store.exports["e"] = {"status": "processing"}
+    store.keys.add("e")  # a running export, so its job key works
     clock = iter([0.0, 0.2, 0.4, 1.5])
     progress = service.Progress(store, "e", total=1, clock=lambda: next(clock))
     progress.written_at = -10
@@ -393,7 +423,7 @@ def test_cannot_cancel_a_finished_export(downloads):
     [
         (lambda s, m: setattr(s, "owner", "someone-else"), 404),
         (lambda s, m: setattr(s, "tracks", []), 409),
-        (lambda s, m: m.setattr(config, "MAX_EXPORT_SONGS", 2), 422),
+        (lambda s, m: setattr(s, "max_songs", 2), 422),
         (lambda s, m: setattr(s, "recent", 299), 429),
         (lambda s, m: m.setattr(service, "ffmpeg_available", lambda: False), 503),
         (lambda s, m: m.setattr(workspace, "free_mb", lambda: 100), 507),
@@ -508,7 +538,7 @@ def client(downloads, monkeypatch):
     store = FakeExportStore()
     monkeypatch.setattr(service, "submit", lambda s, job: run_export(s, job))
     app.dependency_overrides[get_store] = lambda: store
-    app.dependency_overrides[auth.get_current_user_id] = lambda: "user-1"
+    app.dependency_overrides[auth.get_signed_in_user] = lambda: auth.SignedInUser("user-1", "token-1")
     test_client = TestClient(app)
     test_client.store = store
     yield test_client

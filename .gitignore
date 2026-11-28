@@ -100,3 +100,7 @@ desktop.ini
 cypress/videos/
 cypress/screenshots/
 __screenshots__/
+
+# Keys of running imports/exports (backend/app/jobs.py)
+backend/.jobs.json
+backend/.jobs.json.tmp

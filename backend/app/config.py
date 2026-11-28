@@ -20,10 +20,9 @@ load_dotenv(BACKEND_DIR / ".env")
 # Matches the 1-10 check on import_batches.total_links in the database.
 MAX_LINKS_PER_IMPORT = 10
 
-# Import quota. This lives in application code on purpose (not in the
-# database): it is the number of links one user may submit in a rolling
-# 24 hours. The default is a placeholder; set DAILY_IMPORT_LIMIT to change it.
-DAILY_IMPORT_LIMIT = int(os.getenv("DAILY_IMPORT_LIMIT", "100"))
+# The daily import limit, the song limit per export and the daily export limit
+# are the same for every user and computer, so they live in the database
+# (private.app_limits; see database/schema.sql, section 10).
 
 # Reject videos longer than 30 minutes.
 MAX_VIDEO_SECONDS = int(os.getenv("MAX_VIDEO_SECONDS", "1800"))
@@ -33,13 +32,6 @@ MAX_VIDEO_SECONDS = int(os.getenv("MAX_VIDEO_SECONDS", "1800"))
 JS_RUNTIME = os.getenv("JS_RUNTIME", "node")
 
 # ---- Export limits ----------------------------------------------------------
-
-# Songs in one export. Each song is downloaded and converted, so big exports
-# take a long time and a lot of disk space.
-MAX_EXPORT_SONGS = int(os.getenv("MAX_EXPORT_SONGS", "100"))
-
-# Songs one user may export in a rolling 24 hours (placeholder, like imports).
-DAILY_EXPORT_SONG_LIMIT = int(os.getenv("DAILY_EXPORT_SONG_LIMIT", "300"))
 
 # Exports running at the same time on this server. Others wait in a queue.
 MAX_CONCURRENT_EXPORTS = int(os.getenv("MAX_CONCURRENT_EXPORTS", "2"))
@@ -64,12 +56,14 @@ EXPORT_DIR = Path(
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
 
-# Public key: used only to ask Supabase Auth "is this user's token valid?".
+# Public key (safe to share; row-level security protects the data). The
+# backend sends it with every request, together with the user's login token
+# or a job key. There is no secret key: the backend never needs one.
 SUPABASE_PUBLISHABLE_KEY = os.getenv("SUPABASE_PUBLISHABLE_KEY", "")
 
-# SECRET key (sb_secret_... or the legacy service_role key). It bypasses
-# row-level security, so it must only ever exist in backend/.env.
-SUPABASE_SECRET_KEY = os.getenv("SUPABASE_SECRET_KEY", "")
+# Keys of the jobs this backend is running, so ones cut off by closing
+# YT-MP3 can be marked "interrupted" when it starts again.
+JOBS_FILE = Path(os.getenv("JOBS_FILE", str(BACKEND_DIR / ".jobs.json")))
 
 # ---- CORS -------------------------------------------------------------------
 
@@ -93,4 +87,4 @@ ALLOWED_ORIGINS = [
 FRONTEND_DIST_DIR = os.getenv("FRONTEND_DIST_DIR", "").strip()
 
 def supabase_is_configured() -> bool:
-    return bool(SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY and SUPABASE_SECRET_KEY)
+    return bool(SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY)

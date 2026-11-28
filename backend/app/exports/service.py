@@ -14,6 +14,12 @@ Failure rules (use case B8):
 
 This assumes ONE backend process: the queue, cancel requests and download
 links are kept in memory.
+
+The rules (playlist ownership, one export at a time, the song and daily
+limits) are checked by the database function start_export, called with the
+user's login token. The background work then saves progress with the job key
+that function returned, so it keeps working even if the login token expires
+during a long export.
 """
 
 import errno
@@ -49,6 +55,9 @@ BLOCKED_HINTS = ("sign in to confirm", "not a bot", "429", "too many requests")
 NETWORK_HINTS = ("timed out", "timeout", "urlopen error", "temporary failure",
                  "name resolution", "connection", "ssl")
 
+# Database answers that are the user's to read (the rest become "try again").
+REJECTION_STATUSES = (401, 404, 409, 422, 429)
+
 RATE_LIMITED_REASON = "YouTube is limiting downloads right now. Try again later."
 GENERIC_SONG_REASON = "This song could not be downloaded or converted."
 METADATA_FALLBACK = classify_error("")
@@ -81,13 +90,11 @@ class Track:
 @dataclass
 class ExportJob:
     export_id: str
-    owner_id: str
     tracks: list[Track] = field(default_factory=list)
 
 
 # ---- in-memory state (one backend process) ----------------------------------
 
-_start_lock = threading.Lock()
 _state_lock = threading.Lock()
 _cancel_requested: set[str] = set()
 _running: set[str] = set()
@@ -114,29 +121,16 @@ def running_ids() -> frozenset[str]:
 
 # ---- starting -------------------------------------------------------------------
 
-def prepare_export(store, owner_id: str, playlist_id: str) -> ExportJob:
-    """Check everything that can be checked up front, then record the job."""
+def prepare_export(store, user, playlist_id: str) -> ExportJob:
+    """Check what the database can't (the converter, free space), then record the job."""
     if not ffmpeg_available():
         raise ExportRejected(
             503, "Export is not available right now (the audio converter is missing)."
         )
 
-    playlist = store.get_owned_playlist(owner_id, playlist_id)
-    if playlist is None:
-        raise ExportRejected(404, "Playlist not found.")
+    song_count = store.playlist_song_count(user, playlist_id)
 
-    rows = store.get_playlist_tracks(owner_id, playlist_id)
-    if not rows:
-        raise ExportRejected(409, "This playlist has no songs to export.")
-
-    if len(rows) > config.MAX_EXPORT_SONGS:
-        raise ExportRejected(
-            422,
-            f"Playlists with more than {config.MAX_EXPORT_SONGS} songs can't be "
-            "exported yet.",
-        )
-
-    needed_mb = config.EXPORT_MIN_FREE_MB + len(rows) * config.EXPORT_ESTIMATED_MB_PER_SONG
+    needed_mb = config.EXPORT_MIN_FREE_MB + song_count * config.EXPORT_ESTIMATED_MB_PER_SONG
     if workspace.free_mb() < needed_mb:
         raise ExportRejected(
             507,
@@ -144,33 +138,16 @@ def prepare_export(store, owner_id: str, playlist_id: str) -> ExportJob:
             "Try a smaller playlist or try again later.",
         )
 
-    since = datetime.now(timezone.utc) - timedelta(hours=24)
-
-    with _start_lock:
-        used = store.recent_export_song_count(owner_id, since)
-        if used + len(rows) > config.DAILY_EXPORT_SONG_LIMIT:
-            remaining = max(config.DAILY_EXPORT_SONG_LIMIT - used, 0)
-            raise ExportRejected(
-                429,
-                f"Daily export limit reached. You can export {remaining} more "
-                "song(s) in the next 24 hours.",
-            )
-
-        try:
-            export_id = store.create_export(owner_id, playlist, len(rows))
-        except StoreError as error:
-            if error.status_code == 409:
-                raise ExportRejected(
-                    409, "An export is already running. Wait for it to finish."
-                ) from error
-            raise
-
-    store.create_export_items(export_id, rows)
+    try:
+        result = store.start_export(user, playlist_id)
+    except StoreError as error:
+        if error.status_code in REJECTION_STATUSES:
+            raise ExportRejected(error.status_code, str(error)) from error
+        raise
 
     return ExportJob(
-        export_id=export_id,
-        owner_id=owner_id,
-        tracks=[Track(**row) for row in rows],
+        export_id=result["export_id"],
+        tracks=[Track(**track) for track in result["tracks"]],
     )
 
 
@@ -181,8 +158,8 @@ def submit(store, job: ExportJob) -> None:
 
 # ---- cancelling ----------------------------------------------------------------
 
-def request_cancel(store, owner_id: str, export_id: str) -> None:
-    row = store.get_export(owner_id, export_id)
+def request_cancel(store, user, export_id: str) -> None:
+    row = store.get_export(user, export_id)
     if row is None:
         raise ExportRejected(404, "Export not found.")
     if row["status"] not in ACTIVE:
@@ -397,9 +374,9 @@ def run_export(store, job: ExportJob) -> None:
 
 # ---- downloading -----------------------------------------------------------------------
 
-def create_download_link(store, owner_id: str, export_id: str) -> str:
+def create_download_link(store, user, export_id: str) -> str:
     """A path the browser can open for 60 seconds to download the ZIP."""
-    row = store.get_export(owner_id, export_id)
+    row = store.get_export(user, export_id)
     if row is None:
         raise ExportRejected(404, "Export not found.")
 
@@ -463,23 +440,23 @@ def _discard_file(export_id: str) -> None:
         logger.warning("Could not delete the ZIP for export %s yet", export_id)
 
 
-def delete_export(store, owner_id: str, export_id: str) -> None:
+def delete_export(store, user, export_id: str) -> None:
     """Remove one finished export from the history, and its ZIP if it still exists."""
-    row = store.get_export(owner_id, export_id)
+    row = store.get_export(user, export_id)
     if row is None:
         raise ExportRejected(404, "Export not found.")
     if row["status"] in ACTIVE:
         raise ExportRejected(409, "This export is still running. Cancel it first.")
 
-    if not store.delete_export(owner_id, export_id):
+    if not store.delete_export(user, export_id):
         raise ExportRejected(404, "Export not found.")
 
     _discard_file(export_id)
 
 
-def clear_history(store, owner_id: str) -> int:
+def clear_history(store, user) -> int:
     """Remove every finished export of this user. A running export is kept."""
-    ids = store.delete_finished_exports(owner_id)
+    ids = store.delete_finished_exports(user)
     for export_id in ids:
         _discard_file(export_id)
     return len(ids)

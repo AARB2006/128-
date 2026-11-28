@@ -21,7 +21,7 @@ def client(monkeypatch):
         lambda u: {"video_id": u[-11:], "title": "A song", "duration_seconds": 120},
     )
     app.dependency_overrides[get_store] = lambda: store
-    app.dependency_overrides[auth.get_current_user_id] = lambda: "user-1"
+    app.dependency_overrides[auth.get_signed_in_user] = lambda: auth.SignedInUser("user-1", "token-1")
     test_client = TestClient(app)
     test_client.store = store
     yield test_client
@@ -56,6 +56,18 @@ def test_running_import_returns_409(client):
     client.store.active = True
     response = client.post("/imports", json={"urls": [url(A)]})
     assert response.status_code == 409
+    assert response.json()["detail"]["message"] == "An import is already running. Wait for it to finish."
+
+
+def test_database_outage_is_503(client, monkeypatch):
+    from app.supabase_store import StoreError
+
+    def down(user, items):
+        raise StoreError("Could not reach Supabase: down")
+
+    monkeypatch.setattr(client.store, "start_import", down)
+    response = client.post("/imports", json={"urls": [url(A)]})
+    assert response.status_code == 503
 
 
 # ---- authentication (no dependency override) ---------------------------------
@@ -95,6 +107,12 @@ def test_token_is_checked_with_supabase_auth(real_auth_client, monkeypatch):
     assert captured["address"] == "https://proj.supabase.co/auth/v1/user"
     assert captured["headers"]["apikey"] == "sb_publishable_test"
     assert captured["headers"]["Authorization"] == "Bearer abc.def"
+
+
+def test_the_signed_in_user_carries_the_token_but_never_prints_it():
+    user = auth.SignedInUser("user-1", "very.secret.token")
+    assert user.token == "very.secret.token"
+    assert "very.secret.token" not in repr(user)
 
 
 def test_rejected_token_is_401(real_auth_client, monkeypatch):

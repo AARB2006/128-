@@ -1,148 +1,226 @@
 """
-Tests for the Supabase store's HTTP requests (mocked).
+Tests for the Supabase store's HTTP requests (mocked) and the job-key file.
 """
 
 import json
-from datetime import datetime, timezone
 
 import httpx
 import pytest
 
+from app.auth import SignedInUser
+from app.jobs import JobKeys
 from app.supabase_store import StoreError, SupabaseStore
 
 
-def make_store(handler):
-    client = httpx.Client(
-        transport=httpx.MockTransport(handler),
-        headers={"apikey": "sb_secret_test"},
-    )
-    return SupabaseStore("https://proj.supabase.co", "sb_secret_test", client=client)
+USER = SignedInUser("user-1", "user.login.token")
 
 
-def test_secret_key_is_sent_on_apikey_only():
-    seen = {}
+def make_store(handler, jobs=None):
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    return SupabaseStore("https://proj.supabase.co", "sb_publishable_test", jobs=jobs, client=client)
+
+
+def recorder(responses):
+    """A handler that records requests and answers from a {path: json} map."""
+    seen = []
 
     def handler(request):
-        seen["headers"] = request.headers
-        return httpx.Response(200, json=[])
+        seen.append(request)
+        body = responses.get(request.url.path, [])
+        return httpx.Response(200, json=body)
 
-    make_store(handler).has_active_batch("owner-1")
-    assert seen["headers"]["apikey"] == "sb_secret_test"
-    assert "authorization" not in seen["headers"]
-
-
-def test_existing_video_ids_query():
-    def handler(request):
-        assert request.url.path == "/rest/v1/songs"
-        assert request.url.params["owner_id"] == "eq.owner-1"
-        assert request.url.params["video_id"] == "in.(aaaaaaaaaaa,bbbbbbbbbbb)"
-        return httpx.Response(200, json=[{"video_id": "aaaaaaaaaaa"}])
-
-    store = make_store(handler)
-    assert store.existing_video_ids("owner-1", ["aaaaaaaaaaa", "bbbbbbbbbbb"]) == {"aaaaaaaaaaa"}
+    handler.seen = seen
+    return handler
 
 
-def test_existing_video_ids_skips_the_request_when_empty():
+# ---- credentials ------------------------------------------------------------------
+
+def test_user_calls_send_the_publishable_key_and_the_login_token():
+    handler = recorder({"/rest/v1/playlist_songs": [{"song_id": "s1"}, {"song_id": "s2"}]})
+    assert make_store(handler).playlist_song_count(USER, "p-1") == 2
+    headers = handler.seen[0].headers
+    assert headers["apikey"] == "sb_publishable_test"
+    assert headers["authorization"] == "Bearer user.login.token"
+
+
+def test_job_calls_send_no_login_token():
+    jobs = JobKeys()
+    jobs.remember("export", "e-1", "the-job-key")
+    handler = recorder({})
+    make_store(handler, jobs).update_export("e-1", percent=40)
+
+    request = handler.seen[0]
+    assert request.headers["apikey"] == "sb_publishable_test"
+    assert "authorization" not in request.headers
+    assert request.url.path == "/rest/v1/rpc/update_export_job"
+    assert json.loads(request.content) == {
+        "p_export_id": "e-1", "p_job_key": "the-job-key", "p_fields": {"percent": 40}}
+
+
+def test_no_secret_key_anywhere():
+    import app.config as config
+    assert not hasattr(config, "SUPABASE_SECRET_KEY")
+
+
+# ---- imports ----------------------------------------------------------------------
+
+def test_start_import_remembers_the_job_key():
+    jobs = JobKeys()
+    result = {"batch_id": "b-1", "job_key": "k", "status": "processing", "items": []}
+    handler = recorder({"/rest/v1/rpc/start_import": result})
+    items = [{"line_no": 1, "submitted_url": "u", "video_id": "aaaaaaaaaaa",
+              "status": "pending", "error_message": None}]
+
+    assert make_store(handler, jobs).start_import(USER, items) == result
+    assert json.loads(handler.seen[0].content) == {"p_items": items}
+    assert jobs.key_for("b-1") == "k"
+
+
+def test_start_import_without_work_has_no_key():
+    jobs = JobKeys()
+    handler = recorder({"/rest/v1/rpc/start_import": {"batch_id": "b-1", "job_key": None, "items": []}})
+    make_store(handler, jobs).start_import(USER, [])
+    assert jobs.key_for("b-1") is None
+
+
+def test_record_and_finish_import():
+    jobs = JobKeys()
+    jobs.remember("import", "b-1", "k")
+    handler = recorder({"/rest/v1/rpc/record_import_item": "duplicate",
+                        "/rest/v1/rpc/finish_import": "completed"})
+    store = make_store(handler, jobs)
+
+    assert store.record_import_item("b-1", 2, "success", title="T", duration_seconds=9) == "duplicate"
+    assert json.loads(handler.seen[0].content) == {
+        "p_batch_id": "b-1", "p_job_key": "k", "p_line_no": 2, "p_status": "success",
+        "p_error_message": None, "p_title": "T", "p_duration_seconds": 9}
+
+    assert store.finish_import("b-1") == "completed"
+    assert jobs.key_for("b-1") is None  # retired
+
+
+def test_unknown_job_has_no_key_and_sends_nothing():
     def handler(request):
         raise AssertionError("no request expected")
 
-    assert make_store(handler).existing_video_ids("o", []) == set()
-
-
-def test_recent_link_count_sums_batches():
-    def handler(request):
-        assert request.url.params["created_at"].startswith("gte.2026-")
-        return httpx.Response(200, json=[{"total_links": 4}, {"total_links": 6}])
-
-    since = datetime(2026, 11, 16, tzinfo=timezone.utc)
-    assert make_store(handler).recent_link_count("o", since) == 10
-
-
-def test_insert_song_ignores_duplicates_by_owner_and_video():
-    captured = {}
-
-    def handler(request):
-        captured["params"] = dict(request.url.params)
-        captured["prefer"] = request.headers["prefer"]
-        captured["body"] = json.loads(request.content)
-        return httpx.Response(201, json=[{"song_id": "song-1"}])
-
-    track = {"video_id": "aaaaaaaaaaa", "source_url": "u", "title": "T", "duration_seconds": 1}
-    assert make_store(handler).insert_song("owner-1", track) == "song-1"
-    assert captured["params"]["on_conflict"] == "owner_id,video_id"
-    assert "ignore-duplicates" in captured["prefer"]
-    assert captured["body"]["owner_id"] == "owner-1"
-
-
-def test_insert_song_returns_none_when_it_already_exists():
-    store = make_store(lambda request: httpx.Response(201, json=[]))
-    track = {"video_id": "aaaaaaaaaaa", "source_url": "u", "title": "T", "duration_seconds": 1}
-    assert store.insert_song("owner-1", track) is None
-
-
-def test_update_item_targets_one_link():
-    captured = {}
-
-    def handler(request):
-        captured["method"] = request.method
-        captured["params"] = dict(request.url.params)
-        captured["body"] = json.loads(request.content)
-        return httpx.Response(204)
-
-    make_store(handler).update_item("b1", 3, status="success", song_id="s1")
-    assert captured["method"] == "PATCH"
-    assert captured["params"] == {"batch_id": "eq.b1", "line_no": "eq.3"}
-    assert captured["body"]["status"] == "success"
-    assert "processed_at" in captured["body"]
-
-
-def test_create_batch_closed_immediately_gets_a_completed_at():
-    def handler(request):
-        body = json.loads(request.content)
-        assert body["completed_at"] is not None
-        return httpx.Response(201, json=[{"batch_id": "b1"}])
-
-    assert make_store(handler).create_batch("o", 2, "completed") == "b1"
-
-
-def test_errors_become_store_errors_without_leaking_the_body():
-    store = make_store(lambda request: httpx.Response(401, text="invalid key sb_secret_x"))
     with pytest.raises(StoreError) as error:
-        store.has_active_batch("o")
-    assert "sb_secret" not in str(error.value)
+        make_store(handler).record_import_item("b-9", 1, "failed", error_message="x")
+    assert error.value.status_code == 403
+
+
+# ---- exports ----------------------------------------------------------------------
+
+def test_start_export_and_finishing_retires_the_key():
+    jobs = JobKeys()
+    result = {"export_id": "e-1", "job_key": "k", "playlist_name": "P", "tracks": []}
+    handler = recorder({"/rest/v1/rpc/start_export": result})
+    store = make_store(handler, jobs)
+
+    assert store.start_export(USER, "p-1") == result
+    assert json.loads(handler.seen[0].content) == {"p_playlist_id": "p-1"}
+    assert jobs.key_for("e-1") == "k"
+
+    store.update_export("e-1", status="processing")
+    assert jobs.key_for("e-1") == "k"
+    store.update_export("e-1", status="completed", percent=100)
+    assert jobs.key_for("e-1") is None
+
+
+def test_export_item_calls():
+    jobs = JobKeys()
+    jobs.remember("export", "e-1", "k")
+    handler = recorder({})
+    store = make_store(handler, jobs)
+    store.update_export_item("e-1", 3, status="failed", error_message="Gone.")
+    store.skip_pending_export_items("e-1", "Cancelled.")
+    assert [r.url.path for r in handler.seen] == [
+        "/rest/v1/rpc/update_export_item_job", "/rest/v1/rpc/skip_pending_export_items_job"]
+    assert json.loads(handler.seen[0].content)["p_position"] == 3
+    assert json.loads(handler.seen[1].content)["p_reason"] == "Cancelled."
+
+
+def test_deleting_exports_is_done_as_the_user_and_only_finished_ones():
+    handler = recorder({"/rest/v1/exports": [{"export_id": "e-1"}]})
+    store = make_store(handler)
+    assert store.delete_export(USER, "e-1") is True
+    assert store.delete_finished_exports(USER) == ["e-1"]
+    for request in handler.seen:
+        assert request.method == "DELETE"
+        assert request.headers["authorization"] == "Bearer user.login.token"
+        assert request.url.params["owner_id"] == "eq.user-1"
+        assert request.url.params["status"] == "not.in.(pending,processing,packaging)"
+
+
+# ---- errors -----------------------------------------------------------------------
+
+def test_database_messages_reach_the_user():
+    def handler(request):
+        return httpx.Response(409, json={"code": "PT409", "message": "An import is already running."})
+
+    with pytest.raises(StoreError) as error:
+        make_store(handler).start_import(USER, [])
+    assert error.value.status_code == 409
+    assert str(error.value) == "An import is already running."
+
+
+def test_unexpected_errors_get_a_plain_message():
+    def handler(request):
+        return httpx.Response(500, text="<html>stack trace</html>")
+
+    with pytest.raises(StoreError) as error:
+        make_store(handler).playlist_song_count(USER, "p")
+    assert "stack trace" not in str(error.value)
+    assert error.value.status_code == 500
 
 
 def test_network_failure_becomes_a_store_error():
     def handler(request):
-        raise httpx.ConnectError("boom")
+        raise httpx.ConnectError("down")
 
-    with pytest.raises(StoreError):
-        make_store(handler).has_active_batch("o")
-
-
-def test_fail_interrupted_batches_closes_batches_and_pending_items():
-    calls = []
-
-    def handler(request):
-        calls.append((request.method, request.url.path, dict(request.url.params)))
-        if request.method == "GET":
-            return httpx.Response(200, json=[{"batch_id": "b1"}, {"batch_id": "b2"}])
-        return httpx.Response(204)
-
-    assert make_store(handler).fail_interrupted_batches() == 2
-    patches = [c for c in calls if c[0] == "PATCH"]
-    assert patches[0][1].endswith("import_items")
-    assert patches[0][2]["status"] == "eq.pending"
-    assert patches[1][1].endswith("import_batches")
-    assert patches[1][2]["batch_id"] == "in.(b1,b2)"
+    with pytest.raises(StoreError) as error:
+        make_store(handler).playlist_song_count(USER, "p")
+    assert error.value.status_code is None
 
 
-def test_fail_interrupted_batches_does_nothing_when_none_are_stuck():
-    calls = []
+# ---- jobs left from the last run --------------------------------------------------
 
-    def handler(request):
-        calls.append(request.method)
-        return httpx.Response(200, json=[])
+def test_job_keys_survive_a_restart_and_are_then_interrupted(tmp_path):
+    path = tmp_path / ".jobs.json"
+    before = JobKeys(path)
+    before.remember("export", "e-1", "k1")
+    before.remember("import", "b-1", "k2")
+    assert path.is_file()
 
-    assert make_store(handler).fail_interrupted_batches() == 0
-    assert calls == ["GET"]
+    after = JobKeys(path)  # the backend starts again
+    handler = recorder({})
+    assert make_store(handler, after).recover_interrupted_jobs() == 2
+    sent = sorted((json.loads(r.content)["p_kind"], json.loads(r.content)["p_job_key"]) for r in handler.seen)
+    assert sent == [("export", "k1"), ("import", "k2")]
+    assert {r.url.path for r in handler.seen} == {"/rest/v1/rpc/interrupt_job"}
+    assert not path.exists()  # nothing left to remember
+
+
+def test_jobs_already_closed_are_forgotten_and_offline_ones_kept(tmp_path):
+    path = tmp_path / ".jobs.json"
+    JobKeys(path).remember("export", "e-1", "k1")
+
+    def offline(request):
+        raise httpx.ConnectError("down")
+
+    keys = JobKeys(path)
+    assert make_store(offline, keys).recover_interrupted_jobs() == 0
+    assert keys.key_for("e-1") == "k1"  # try again next time
+
+    def closed(request):
+        return httpx.Response(403, json={"message": "This job can no longer be updated."})
+
+    keys = JobKeys(path)
+    make_store(closed, keys).recover_interrupted_jobs()
+    assert keys.key_for("e-1") is None
+    assert not path.exists()
+
+
+def test_an_unreadable_job_file_is_ignored(tmp_path):
+    path = tmp_path / ".jobs.json"
+    path.write_text("not json")
+    assert JobKeys(path).left_from_last_run() == []

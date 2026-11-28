@@ -1,58 +1,132 @@
 """
 Shared test helpers: a fake in-memory store and sample ids.
+
+FakeStore behaves like the database functions start_import,
+record_import_item and finish_import (database/schema.sql, section 10):
+the same rules and the same messages. The functions themselves are tested
+against a real Postgres separately.
 """
 
 import pytest
 
+from app.supabase_store import StoreError
+
+
+def user_id(user):
+    """Tests pass a plain id string; the app passes a SignedInUser."""
+    return getattr(user, "id", user)
+
 
 class FakeStore:
-    """In-memory stand-in for SupabaseStore."""
+    """In-memory stand-in for SupabaseStore (the import half)."""
 
-    def __init__(self, library=None, recent=0, active=False):
+    def __init__(self, library=None, recent=0, active=False, daily_limit=100):
         self.library = set(library or [])  # video ids the user already owns
-        self.recent = recent
-        self.active = active
+        self.recent = recent  # links submitted in the last 24 hours
+        self.active = active  # another import is running
+        self.daily_limit = daily_limit
         self.batches = {}
         self.items = {}  # (batch_id, line_no) -> dict
         self.songs = []  # (owner_id, track)
-        self.fail_on_update = False
+        self.keys = {}  # batch_id -> job key, while the batch runs
+        self.fail_after_records = None  # simulate Supabase going down
 
-    def existing_video_ids(self, owner_id, video_ids):
-        return {v for v in video_ids if v in self.library}
+    # ---- as the user --------------------------------------------------------
 
-    def recent_link_count(self, owner_id, since):
-        return self.recent
+    def start_import(self, user, items):
+        if self.active:
+            raise StoreError("An import is already running. Wait for it to finish.", 409)
+        if self.recent + len(items) > self.daily_limit:
+            remaining = max(self.daily_limit - self.recent, 0)
+            raise StoreError(
+                f"Daily import limit reached. You can import {remaining} more link(s) "
+                "in the next 24 hours.",
+                429,
+            )
 
-    def has_active_batch(self, owner_id):
-        return self.active
-
-    def create_batch(self, owner_id, total_links, status):
         batch_id = f"batch-{len(self.batches) + 1}"
+        planned = []
+        for item in items:
+            item = dict(item)
+            if item["status"] == "pending" and item["video_id"] in self.library:
+                item.update(status="duplicate", error_message="Already in your library.")
+            item["processed_at"] = None if item["status"] == "pending" else "now"
+            planned.append(item)
+
+        work = any(i["status"] == "pending" for i in planned)
+        status = (
+            "processing" if work
+            else "failed" if any(i["status"] == "invalid" for i in planned)
+            else "completed"
+        )
         self.batches[batch_id] = {
-            "owner_id": owner_id,
-            "total_links": total_links,
+            "owner_id": user_id(user),
+            "total_links": len(items),
             "status": status,
         }
-        return batch_id
+        for item in planned:
+            self.items[(batch_id, item["line_no"])] = item
+        key = f"key-{batch_id}" if work else None
+        if key:
+            self.keys[batch_id] = key
+        return {
+            "batch_id": batch_id,
+            "job_key": key,
+            "status": status,
+            "items": [
+                {"line_no": i["line_no"], "status": i["status"], "error_message": i["error_message"]}
+                for i in planned
+            ],
+        }
 
-    def create_items(self, batch_id, items):
-        for item in items:
-            self.items[(batch_id, item["line_no"])] = dict(item)
+    # ---- with the job key ---------------------------------------------------
 
-    def insert_song(self, owner_id, track):
-        if track["video_id"] in self.library:
-            return None
-        self.library.add(track["video_id"])
-        self.songs.append((owner_id, track))
-        return f"song-{len(self.songs)}"
+    def _check(self, batch_id):
+        if batch_id not in self.keys:
+            raise StoreError("This job can no longer be updated.", 403)
 
-    def update_item(self, batch_id, line_no, **fields):
-        if self.fail_on_update:
-            raise RuntimeError("Supabase is down")
-        self.items[(batch_id, line_no)].update(fields)
+    def record_import_item(self, batch_id, line_no, status, error_message=None,
+                           title=None, duration_seconds=None):
+        self._check(batch_id)
+        if self.fail_after_records is not None:
+            if self.fail_after_records == 0:
+                raise StoreError("Could not reach Supabase: down")
+            self.fail_after_records -= 1
 
-    def finish_batch(self, batch_id, status):
+        item = self.items[(batch_id, line_no)]
+        song_id = None
+        if status == "success":
+            video_id = item["video_id"]
+            if video_id in self.library:
+                status, error_message = "duplicate", "Already in your library."
+            else:
+                self.library.add(video_id)
+                self.songs.append((
+                    self.batches[batch_id]["owner_id"],
+                    {
+                        "video_id": video_id,
+                        "source_url": f"https://www.youtube.com/watch?v={video_id}",
+                        "title": title,
+                        "duration_seconds": duration_seconds,
+                    },
+                ))
+                song_id = f"song-{len(self.songs)}"
+                error_message = None
+        item.update(status=status, error_message=error_message, song_id=song_id, processed_at="now")
+        return status
+
+    def finish_import(self, batch_id):
+        self._check(batch_id)
+        mine = [v for k, v in self.items.items() if k[0] == batch_id]
+        for item in mine:
+            if item["status"] == "pending":
+                item.update(status="failed", error_message="The import stopped unexpectedly.")
+        added = any(i["status"] == "success" for i in mine)
+        problems = any(i["status"] in ("failed", "invalid") for i in mine)
+        status = "partial" if problems and added else "failed" if problems else "completed"
         self.batches[batch_id]["status"] = status
+        del self.keys[batch_id]
+        return status
 
     def statuses(self, batch_id):
         return [

@@ -1,9 +1,11 @@
 """
-Checks the Supabase login token on each request
-and returns the signed-in user's id.
+Checks the Supabase login token on each request and returns the signed-in
+user: their id, and the token itself, which the backend uses to talk to the
+database as that user.
 """
 
 import logging
+from dataclasses import dataclass
 
 import httpx
 from fastapi import Header
@@ -15,7 +17,16 @@ from .errors import api_error
 logger = logging.getLogger(__name__)
 
 
-def get_current_user_id(authorization: str | None = Header(default=None)) -> str:
+@dataclass(frozen=True)
+class SignedInUser:
+    id: str
+    token: str
+
+    def __repr__(self) -> str:  # never print the token in logs
+        return f"SignedInUser(id={self.id!r})"
+
+
+def get_signed_in_user(authorization: str | None = Header(default=None)) -> SignedInUser:
     """
     Identify the caller from their Supabase login token.
 
@@ -53,4 +64,4 @@ def get_current_user_id(authorization: str | None = Header(default=None)) -> str
     if not user_id:
         api_error(401, "Your session could not be verified.")
 
-    return user_id
+    return SignedInUser(id=user_id, token=token)

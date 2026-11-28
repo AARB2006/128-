@@ -4,8 +4,9 @@ YT-MP3 setup for Windows. Started by "Setup YT-MP3.bat".
 What it does, in order:
   1. Makes sure Python 3.10+, Node.js and FFmpeg are installed (installs any
      that are missing with winget, Windows' own package installer).
-  2. Asks for the Supabase settings once and saves them (backend\.env and
-     .env.local), or reuses the ones already there.
+  2. Saves the two public Supabase settings (backend\.env and .env.local):
+     from an earlier setup, from supabase-public.env, or by asking once.
+     No secret key is needed, and an old one is removed.
   3. Installs the backend's Python packages into backend\.venv.
   4. Installs the frontend's packages and builds the app into dist\.
   5. Puts a "YT-MP3" shortcut on the desktop.
@@ -89,6 +90,11 @@ Write-Ok 'FFmpeg: found'
 
 
 # ---- 2. Supabase settings -------------------------------------------------------
+# Only the two PUBLIC settings are needed: the project URL and the publishable
+# key. YT-MP3 needs no secret key on this computer (see README, section 6).
+# They come from, in order: backend\.env (if set up before), the file
+# supabase-public.env in the YT-MP3 folder (if the project includes it), or
+# a question.
 
 function Read-Setting([string]$Prompt, [string]$Pattern, [string]$Example) {
     while ($true) {
@@ -98,65 +104,56 @@ function Read-Setting([string]$Prompt, [string]$Pattern, [string]$Example) {
     }
 }
 
-function Read-SecretSetting([string]$Prompt, [string]$Pattern, [string]$Example) {
-    while ($true) {
-        $secure = Read-Host $Prompt -AsSecureString
-        $pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
-        try {
-            $value = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($pointer).Trim()
-        } finally {
-            [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($pointer)
-        }
-        if ($value -match $Pattern) { return $value }
-        Write-Note "That doesn't look right. It should start with: $Example"
-    }
-}
-
 $urlPattern = '^https://[a-z0-9-]+\.supabase\.co/?$'
 $publishablePattern = '^sb_publishable_[A-Za-z0-9_-]+$'
-$secretPattern = '^sb_secret_[A-Za-z0-9_-]+$'
+
+function Test-Settings($Values) {
+    return ("$($Values['SUPABASE_URL'])" -match $urlPattern) -and
+           ("$($Values['SUPABASE_PUBLISHABLE_KEY'])" -match $publishablePattern)
+}
 
 Write-Step 'Supabase settings'
-$settings = Read-EnvFile $BackendEnv
-$haveSettings = ("$($settings['SUPABASE_URL'])" -match $urlPattern) -and
-                ("$($settings['SUPABASE_PUBLISHABLE_KEY'])" -match $publishablePattern) -and
-                ("$($settings['SUPABASE_SECRET_KEY'])" -match $secretPattern)
+$fromBackend = Read-EnvFile $BackendEnv
+$fromProject = Read-EnvFile (Join-Path $Root 'supabase-public.env')
 
-if ($haveSettings) {
+if (Test-Settings $fromBackend) {
     Write-Ok 'Using the settings already in backend\.env.'
-    $supabaseUrl = $settings['SUPABASE_URL'].TrimEnd('/')
-    $publishableKey = $settings['SUPABASE_PUBLISHABLE_KEY']
+    $settings = $fromBackend
+} elseif (Test-Settings $fromProject) {
+    Write-Ok 'Using the settings in supabase-public.env.'
+    $settings = $fromProject
 } else {
-    if (Test-Path -LiteralPath $BackendEnv) {
-        Write-Note 'backend\.env is incomplete. Enter the settings again.'
+    Write-Host '    Find these in Supabase: the project URL, and Project Settings > API Keys > Publishable key.'
+    Write-Host '    Both are public; no secret key is needed.'
+    $settings = @{
+        'SUPABASE_URL' = Read-Setting '    Supabase project URL' $urlPattern 'https://abcd1234.supabase.co'
+        'SUPABASE_PUBLISHABLE_KEY' = Read-Setting '    Publishable key' $publishablePattern 'sb_publishable_...'
     }
-    Write-Host '    Find these in Supabase: Project Settings > API Keys, and the project URL.'
-    Write-Host '    The secret key is hidden while you paste it. It is saved only on this computer.'
-    $supabaseUrl = (Read-Setting '    Supabase project URL' $urlPattern 'https://abcd1234.supabase.co').TrimEnd('/')
-    $publishableKey = Read-Setting '    Publishable key' $publishablePattern 'sb_publishable_...'
-    $secretKey = Read-SecretSetting '    Secret key (hidden)' $secretPattern 'sb_secret_'
+}
+$supabaseUrl = "$($settings['SUPABASE_URL'])".TrimEnd('/')
+$publishableKey = "$($settings['SUPABASE_PUBLISHABLE_KEY'])"
 
+# An older version of YT-MP3 kept the secret key in backend\.env. Remove just
+# that line (other settings stay), so the key is no longer on this computer.
+if ((Test-Settings $fromBackend) -and $fromBackend.ContainsKey('SUPABASE_SECRET_KEY')) {
+    $kept = @(Get-Content -LiteralPath $BackendEnv | Where-Object { $_ -notmatch '^\s*SUPABASE_SECRET_KEY\s*=' })
+    Write-TextFile $BackendEnv (($kept -join "`r`n") + "`r`n")
+    Write-Ok 'Removed the old secret key from backend\.env (YT-MP3 no longer needs it).'
+}
+
+# Write backend\.env when it's new or incomplete.
+if (-not (Test-Settings $fromBackend)) {
     $backendSettings = @(
         '# YT-MP3 backend settings for this computer. Written by Setup.',
-        '# Contains the secret key: never share or upload this file.',
+        '# Public values only: YT-MP3 needs no secret key.',
         '# Other settings and their defaults: see backend\.env.example.',
         "SUPABASE_URL=$supabaseUrl",
         "SUPABASE_PUBLISHABLE_KEY=$publishableKey",
-        "SUPABASE_SECRET_KEY=$secretKey",
         "ALLOWED_ORIGINS=$AppUrl,http://127.0.0.1:$Port",
         ''
     ) -join "`r`n"
     Write-TextFile $BackendEnv $backendSettings
-    $secretKey = $null
-    $backendSettings = $null
     Write-Ok 'Saved backend\.env.'
-}
-
-# Only this Windows user may read the file with the secret key.
-try {
-    & icacls $BackendEnv /inheritance:r /grant:r "$($env:USERNAME):(R,W)" | Out-Null
-} catch {
-    Write-Note 'Could not restrict access to backend\.env; it still works.'
 }
 
 if (Test-Path -LiteralPath $FrontendEnv) {

@@ -7,6 +7,7 @@ import pytest
 from app import importer
 from app.importer import ImportRejected, prepare_import, run_import
 from app.metadata import VideoRejected
+from app.supabase_store import StoreError
 
 from conftest import A, B, C, D, FakeStore, url
 
@@ -28,7 +29,7 @@ def fake_metadata(monkeypatch):
 
 def start_and_run(store, urls, owner="user-1"):
     batch_id, entries = prepare_import(store, owner, urls)
-    run_import(store, batch_id, owner, entries)
+    run_import(store, batch_id, entries)
     return batch_id
 
 
@@ -61,17 +62,24 @@ def test_second_import_while_one_is_running_is_rejected():
     assert error.value.status_code == 409
 
 
-def test_daily_quota_is_enforced(monkeypatch):
-    monkeypatch.setattr(importer, "DAILY_IMPORT_LIMIT", 10)
+def test_daily_quota_message_comes_from_the_database():
     with pytest.raises(ImportRejected) as error:
-        prepare_import(FakeStore(recent=9), "u", [url(A), url(B)])
+        prepare_import(FakeStore(recent=9, daily_limit=10), "u", [url(A), url(B)])
     assert error.value.status_code == 429
     assert "1 more" in error.value.message
 
 
-def test_quota_allows_exactly_the_limit(monkeypatch):
-    monkeypatch.setattr(importer, "DAILY_IMPORT_LIMIT", 10)
-    prepare_import(FakeStore(recent=8), "u", [url(A), url(B)])  # 8 + 2 == 10
+def test_quota_allows_exactly_the_limit():
+    prepare_import(FakeStore(recent=8, daily_limit=10), "u", [url(A), url(B)])  # 8 + 2 == 10
+
+
+def test_database_outage_is_not_shown_as_a_rejection():
+    class Down(FakeStore):
+        def start_import(self, user, items):
+            raise StoreError("Could not reach Supabase: down")
+
+    with pytest.raises(StoreError):
+        prepare_import(Down(), "u", [url(A)])
 
 
 def test_invalid_links_and_duplicates_are_decided_up_front():
@@ -155,21 +163,30 @@ def test_song_added_by_a_parallel_request_becomes_a_duplicate(monkeypatch):
     store = FakeStore()
     batch_id, entries = prepare_import(store, "u", [url(A)])
     store.library.add(A)  # appears after planning, before saving
-    run_import(store, batch_id, "u", entries)
+    run_import(store, batch_id, entries)
     assert store.statuses(batch_id) == ["duplicate"]
 
 
 def test_supabase_failing_midway_still_closes_the_batch():
     store = FakeStore()
     batch_id, entries = prepare_import(store, "u", [url(A), url(B)])
-    store.fail_on_update = True
-    run_import(store, batch_id, "u", entries)
+    store.fail_after_records = 1  # the first link is saved, then Supabase goes down
+    run_import(store, batch_id, entries)
 
     # The batch is never left "processing". The first song was really saved
     # before the outage, so the batch is partial; the second never ran.
     assert store.batches[batch_id]["status"] == "partial"
     assert len(store.songs) == 1
     assert [e.status for e in entries] == ["success", "failed"]
+    assert store.keys == {}  # the job key is retired
+
+
+def test_job_key_is_retired_when_the_import_ends():
+    store = FakeStore()
+    batch_id = start_and_run(store, [url(A)])
+    assert store.keys == {}
+    with pytest.raises(StoreError):
+        store.record_import_item(batch_id, 1, "success", title="again")
 
 # ---- Shorts are imported like any other video ---------------------------------
 
